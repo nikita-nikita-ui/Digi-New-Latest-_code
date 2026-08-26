@@ -1,1 +1,11 @@
 @import "tailwindcss";
+
+.ant-table-thead > tr > th {
+  background-color: #9bacbb !important; /* bg-slate-100 */
+  color: #031225 !important;            /* text-slate-600 */
+  border-bottom: 2px solid #33373d !important; /* border-blue-500 */
+  text-transform: uppercase;
+  font-weight: 700 !important;
+  letter-spacing: 0.05em;
+}
+

@@ -1,1 +1,0 @@
-export const Base_url = "https://test.pearl-developer.com";

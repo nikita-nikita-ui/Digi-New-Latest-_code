@@ -8,17 +8,13 @@ import {
   ShoppingBag,
   Store,
   Coins,
-  CreditCard,
-  Shield,
   BarChart,
   Layers,
-  AlertTriangle,
   Bell,
   Image,
-  HelpCircle,
-  Activity,
   Settings,
   ChevronDown,
+  HeartPulse,
 } from "lucide-react";
 
 const menuItems = [
@@ -27,11 +23,11 @@ const menuItems = [
     icon: Home,
     route: "/",
   },
-  {
-    label: "Manage Users",
-    icon: Users,
-    route: "/usersmanagement",
-  },
+  // {
+  //   label: "Manage Users",
+  //   icon: Users,
+  //   route: "/usersmanagement",
+  // },
   {
     label: "Local Needs",
     icon: MapPin,
@@ -41,9 +37,24 @@ const menuItems = [
     label: "Jobs",
     icon: Briefcase,
     children: [
-      { label: "Part-Time Jobs", route: "/PartTimeJobs" },
-      { label: "Full-Time Jobs", route: "/FullTimeJobs" },
+      { label: " Part-Time Jobs", route: "/PartTimeJobs" },
+      { label: " Full-Time Jobs", route: "/FullTimeJobs" },
     ],
+  },
+  {
+    label: "All Admin",
+    icon: Users,
+    route: "/all-admin",
+  },
+  {
+    label: "All Users",
+    icon: Users,
+    route: "/all-users",
+  },
+  {
+    label: "Blood Request",
+    icon: HeartPulse,
+    route: "/blood-request",
   },
   {
     label: "Marketplace",
@@ -53,88 +64,45 @@ const menuItems = [
   {
     label: "Shops",
     icon: Store,
-    route: "/ShopManagement",
+    route: "/shop-management",
   },
   {
     label: "Credits",
     icon: Coins,
-    route: "/Credits",
-  },
-  {
-    label: "Payments & Subscriptions",
-    icon: CreditCard,
     children: [
-      { label: "Transactions", route: "/payments/transactions" },
-      { label: "Revenue Analytics", route: "/payments/revenue" },
+      { label: " Plans", route: "/credit" },
+      { label: " Coupon", route: "/coupon" },
     ],
   },
   {
-    label: "Safety",
-    icon: Shield,
-    children: [
-      { label: "SOS Alerts", route: "/safety/sos" },
-      { label: "Blood Requests", route: "/safety/blood" },
-    ],
-  },
-  {
-    label: "Reports & Analytics",
+    label: "Business verifies",
     icon: BarChart,
-    route: "/Reports",
+    route: "/business",
   },
   {
     label: "Categories",
     icon: Layers,
     children: [
-      { label: "Categories", route: "/categories/main" },
-      { label: "Subcategories", route: "/categories/sub" },
+      { label: "Shop", route: "/cat-shop" },
+      { label: "Items", route: "/cat-item" },
+      { label: "Jobs", route: "/cat-jobs" },
     ],
   },
   {
-    label: "Content Moderation",
-    icon: AlertTriangle,
-    children: [
-      { label: "Reported Posts", route: "/moderation/reports" },
-      { label: "Blocked Users", route: "/moderation/blocked" },
-    ],
-  },
-  {
-    label: "Push Notifications",
+    label: "Notifications",
     icon: Bell,
-    children: [
-      { label: "Send Notification", route: "/notifications/send" },
-      { label: "Scheduled Notifications", route: "/notifications/scheduled" },
-    ],
+    route: "/notifications",
   },
   {
-    label: "Home Banners",
+    label: "Banner Management",
     icon: Image,
-    children: [
-      { label: "Banner List", route: "/banners/list" },
-      { label: "Add Banner", route: "/banners/add" },
-    ],
-  },
-  {
-    label: "Support & Help",
-    icon: HelpCircle,
-    children: [
-      { label: "Support Tickets", route: "/support/tickets" },
-      { label: "Resolved Tickets", route: "/support/resolved" },
-    ],
-  },
-  {
-    label: "Activity Tracker",
-    icon: Activity,
-    children: [
-      { label: "Platform Activity", route: "/activity/platform" },
-      { label: "User Activity", route: "/activity/users" },
-    ],
+    route: "/banner-management",
   },
   {
     label: "Settings",
     icon: Settings,
-    route: "/settings",
+    route: "/systemsetting",
   },
-  
 ];
 
 const Sidebar=({ sidebarOpen, closeSidebar })=> {
@@ -146,12 +114,11 @@ const Sidebar=({ sidebarOpen, closeSidebar })=> {
     document.body.style.overflow = sidebarOpen ? "hidden" : "auto";
   }, [sidebarOpen]);
 
-  // Auto-open parent menu if child route is active
   useEffect(() => {
     menuItems.forEach((item, index) => {
       if (item.children) {
         const isChildActive = item.children.some(
-          (child) => child.route === location.pathname
+          (child) => child.route === location.pathname,
         );
         if (isChildActive) {
           setOpenMenu(index);
@@ -192,8 +159,8 @@ const Sidebar=({ sidebarOpen, closeSidebar })=> {
       )}
 
       <aside
-        className={`fixed top-16 left-0 z-40 w-68 h-[calc(100vh-64px)]
-        bg-white border-r shadow-lg p-4 overflow-y-auto
+        className={`fixed top-21 left-0 z-40 w-68 h-[calc(100vh-64px)]
+        bg-white  shadow-lg p-4 overflow-y-auto
         transition-transform duration-300 lg:translate-x-0
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
         scrollbar-hide`}
@@ -208,7 +175,7 @@ const Sidebar=({ sidebarOpen, closeSidebar })=> {
           }
         `}</style>
 
-        <nav className="space-y-2">
+        <nav className="space-y-2 m-1">
           {menuItems.map((item, index) => {
             const isActive = isMenuItemActive(item.route);
             const isParentMenuActive = isParentActive(item.children);
