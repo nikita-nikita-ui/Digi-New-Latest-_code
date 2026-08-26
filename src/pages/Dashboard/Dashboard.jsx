@@ -168,7 +168,7 @@ setChartData(formattedData);
       <div className="flex flex-col md:flex-row md:items-center justify-between m-5 gap-4 ">
         <div>
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-            Admin <span className="text-[#FE702E]">Dashboard Details</span>
+            Admin <span className="text-[#FE702E]">Dashboard</span>
           </h1>
           <p className="text-gray-500 mt-1">
             Overview of platform performance and statistics.
