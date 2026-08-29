@@ -169,7 +169,7 @@ const handleResendOtp = async () => {
             <img src={defaulting} alt="logo" className="w-12 h-12" />
           </div>
           <h1 className="text-2xl font-extrabold text-gray-800">
-            Time2Cash Admin Panel 
+            Time2Cash Admin Panel Login
           </h1>
           <p className="text-gray-500 text-sm mt-1">
             Sign in with your phone number

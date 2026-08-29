@@ -7,7 +7,7 @@ import ProtectedRoute from "./auth/ProtectedRoute";
 import Dashboard from "./pages/Dashboard/Dashboard";
 import Login from "./Authentication/Login";
 import ManageUsers from "./pages/User_Management/ManageUsers";
-import LocalNeeds from "./pages/LocalNeeds/LocalNeeds";
+import LocalNeeds from "./pages/Locals/LocalNeeds";
 import PartTimeJobs from "./pages/Jobs/PartTimeJobs";
 import FullTimeJobs from "./pages/Jobs/FullTimeJobs";
 import AllAdmin from "./pages/All_Admin/Alladmin";

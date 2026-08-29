@@ -61,6 +61,25 @@ const UserLocalNeeds = () => {
   };
 
   return (
+    <>
+    <style>{`
+      .custom-scrollbar::-webkit-scrollbar {
+        height: 8px;
+      }
+
+      .custom-scrollbar::-webkit-scrollbar-track {
+    background: #fafafa !important;
+      }
+
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+       background: #e2e8f0 !important;
+        border-radius: 10px;
+      }
+
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+     background: #e2e8f0 !important;
+      }
+    `}</style>
     <div className="p-4 md:p-6 bg-slate-50 min-h-screen font-sans selection:bg-indigo-500 selection:text-white w-full">
       <div className="w-full space-y-6">
         
@@ -68,7 +87,7 @@ const UserLocalNeeds = () => {
           <div>
             <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
               <Compass className="text-indigo-600 animate-spin-slow" size={28} />
-              User Local Needs
+              User Local Tasks
             </h1>
             <p className="text-slate-500 text-sm mt-1">
               Public User Panel - Monitor and oversee jobs initialized by platform end-users.
@@ -101,7 +120,8 @@ const UserLocalNeeds = () => {
         </div>
 
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden transition-all duration-300 w-full">
-          <div className="overflow-x-auto w-full">
+         
+            <div className="overflow-x-auto w-full custom-scrollbar">
             <table className="w-full min-w-[1200px] text-left border-collapse table-fixed">
               <thead>
                 <tr className="bg-slate-50/75 border-b border-slate-100 text-slate-500 text-xs font-bold uppercase tracking-wider">
@@ -109,8 +129,8 @@ const UserLocalNeeds = () => {
                   <th className="py-4.5 px-4 w-28">Image</th>
                   <th className="py-4.5 px-6 w-72">Title</th>
                   <th className="py-4.5 px-6 w-80">Location Address</th>
-                  <th className="py-4.5 px-6 w-40">Work Format</th>
-                  <th className="py-4.5 px-6 w-44">WhatsApp Hub</th>
+                  <th className="py-4.5 px-6 w-40">Work Format</th>                 
+                   <th className="py-4.5 px-6 w-44">WhatsApp Hub</th>
                   <th className="py-4.5 px-6 w-36">Status</th>
                   <th className="py-4.5 px-6 text-center w-36">Actions</th>
                 </tr>
@@ -200,7 +220,7 @@ const UserLocalNeeds = () => {
                 ) : (
                   <tr>
                     <td colSpan="8" className="py-12 px-6 text-center text-slate-400 font-medium">
-                      No user needs recorded in database.
+                      No user Tasks recorded in database.
                     </td>
                   </tr>
                 )}
@@ -243,7 +263,7 @@ const UserLocalNeeds = () => {
               <div className="flex items-center gap-2">
                 <Sparkles className="text-indigo-400 animate-pulse" size={20} />
                 <h2 className="font-extrabold text-base tracking-wide uppercase">
-                  Need Specifications Details
+                  Task Specifications Details
                 </h2>
               </div>
               <button 
@@ -267,7 +287,7 @@ const UserLocalNeeds = () => {
                         ? "bg-amber-50 text-amber-700 border border-amber-200" 
                         : "bg-slate-100 text-slate-600 border border-slate-200"
                     }`}>
-                      {selectedTask.isFeatured ? "Featured Need" : "Standard Need"}
+                      {selectedTask.isFeatured ? "Featured Need" : "Standard Task"}
                     </span>
                     <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase ${
                       selectedTask.status === "active" || selectedTask.status === "open"
@@ -398,7 +418,7 @@ const UserLocalNeeds = () => {
                   Confirm Deletion
                 </h2>
                 <p className="text-slate-500 text-sm">
-                  Are you sure you want to permanently erase this user need post? This database operation is final.
+                  Are you sure you want to permanently erase this user task post? This database operation is final.
                 </p>
               </div>
             </div>
@@ -413,13 +433,13 @@ const UserLocalNeeds = () => {
                 onClick={confirmDelete}
                 className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-rose-100 hover:shadow-rose-200 transition duration-150 cursor-pointer"
               >
-                Yes, Delete Need
+                Yes, Delete Task
               </button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </div></>
   );
 };
 

@@ -33,7 +33,33 @@ const OTHER_STATIC_STATS = {
   sosAlertsToday: "03",
   bloodRequestsToday: "08",
   creditsSold: "1,250",
-  revenue: "84,500",
+
+  revenue: {
+    day: 84500,
+    month: 520000,
+    year: 6850000,
+  },
+
+  creditsSpent: [
+    { date: "Oct 01", credits: 120 },
+    { date: "Oct 05", credits: 180 },
+    { date: "Oct 10", credits: 150 },
+    { date: "Oct 15", credits: 240 },
+    { date: "Oct 20", credits: 210 },
+    { date: "Oct 25", credits: 280 },
+    { date: "Oct 30", credits: 320 },
+  ],
+
+  subscriptionRevenue: [
+    { date: "Oct 01", revenue: 45000 },
+    { date: "Oct 05", revenue: 62000 },
+    { date: "Oct 10", revenue: 58000 },
+    { date: "Oct 15", revenue: 85000 },
+    { date: "Oct 20", revenue: 72000 },
+    { date: "Oct 25", revenue: 95000 },
+    { date: "Oct 30", revenue: 110000 },
+  ],
+
   newRegistrations: "24",
 };
 
@@ -120,6 +146,7 @@ function Dashboard() {
   const [error, setError] = useState(null);
 const [filter, setFilter] = useState("yearly");
 const [chartData, setChartData] = useState([]);
+const [revenueFilter, setRevenueFilter] = useState("day");
   useEffect(() => {
     const fetchStats = async () => {
       try {
@@ -273,18 +300,8 @@ setChartData(formattedData);
       {/* -------------------- FINANCE & COMMUNITY (MIXED) -------------------- */}
       <SectionTitle title="Finance & Community" />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-        <StatCard
-          title="Total Revenue"
-          value={`₹${OTHER_STATIC_STATS.revenue}`}
-          icon={IndianRupee}
-          color="bg-emerald-500"
-        />
-        <StatCard
-          title="Credits Sold"
-          value={OTHER_STATIC_STATS.creditsSold}
-          icon={CreditCard}
-          color="bg-orange-600"
-        />
+     
+       
         <StatCard
           title="SOS Alerts"
           value="Coming soon"
@@ -398,6 +415,168 @@ setChartData(formattedData);
           </div>
         </div>
       </div>
+      <div className="mt-8 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+
+  <div className="flex items-center justify-between mb-6">
+    <h2 className="text-xl font-bold text-gray-800">
+      Revenue Trends
+    </h2>
+
+    <select
+      value={revenueFilter}
+      onChange={(e) => setRevenueFilter(e.target.value)}
+      className="appearance-none cursor-pointer text-sm font-semibold text-red-300 bg-white border border-orange-200 rounded-xl px-4 py-2.5 shadow-sm"
+    >
+      <option value="day">Day</option>
+      <option value="month">Month</option>
+      <option value="year">Year</option>
+    </select>
+  </div>
+
+  <div className="h-[350px] w-full">
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart
+        data={[
+          {
+            period: revenueFilter === "day"
+              ? "Today"
+              : revenueFilter === "month"
+              ? "This Month"
+              : "This Year",
+            revenue: OTHER_STATIC_STATS.revenue[revenueFilter],
+          },
+        ]}
+      >
+        <CartesianGrid
+          strokeDasharray="3 3"
+          vertical={false}
+          stroke="#f0f0f0"
+        />
+
+        <XAxis dataKey="period" />
+        <YAxis />
+
+        <Tooltip
+          formatter={(value) => [
+            `₹${value.toLocaleString()}`,
+            "Revenue",
+          ]}
+        />
+
+        <Area
+          type="monotone"
+          dataKey="revenue"
+          stroke="#FE702E"
+          strokeWidth={3}
+          fill="#FE702E"
+          fillOpacity={0.15}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  </div>
+
+</div>
+<div className="mt-8 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+
+  <div className="mb-6">
+    <h2 className="text-xl font-bold text-gray-800">
+      Credits Spent
+    </h2>
+    <p className="text-sm text-gray-500 mt-1">
+      Credit usage trends over time
+    </p>
+  </div>
+
+  <div className="h-[350px] w-full">
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={OTHER_STATIC_STATS.creditsSpent}>
+
+        <CartesianGrid
+          strokeDasharray="3 3"
+          vertical={false}
+          stroke="#f0f0f0"
+        />
+
+        <XAxis
+          dataKey="date"
+          axisLine={false}
+          tickLine={false}
+        />
+
+        <YAxis
+          axisLine={false}
+          tickLine={false}
+        />
+
+        <Tooltip />
+
+        <Area
+          type="monotone"
+          dataKey="credits"
+          stroke="#8B5CF6"
+          strokeWidth={3}
+          fill="#8B5CF6"
+          fillOpacity={0.15}
+        />
+
+      </AreaChart>
+    </ResponsiveContainer>
+  </div>
+
+</div>
+<div className="mt-8 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+
+  <div className="mb-6">
+    <h2 className="text-xl font-bold text-gray-800">
+      Subscription Revenue
+    </h2>
+    <p className="text-sm text-gray-500 mt-1">
+      Revenue generated from subscriptions
+    </p>
+  </div>
+
+  <div className="h-[350px] w-full">
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={OTHER_STATIC_STATS.subscriptionRevenue}>
+
+        <CartesianGrid
+          strokeDasharray="3 3"
+          vertical={false}
+          stroke="#f0f0f0"
+        />
+
+        <XAxis
+          dataKey="date"
+          axisLine={false}
+          tickLine={false}
+        />
+
+        <YAxis
+          axisLine={false}
+          tickLine={false}
+        />
+
+        <Tooltip
+          formatter={(value) => [
+            `₹${value.toLocaleString()}`,
+            "Subscription Revenue",
+          ]}
+        />
+
+        <Area
+          type="monotone"
+          dataKey="revenue"
+          stroke="#10B981"
+          strokeWidth={3}
+          fill="#10B981"
+          fillOpacity={0.15}
+        />
+
+      </AreaChart>
+    </ResponsiveContainer>
+  </div>
+
+</div>
     </div>
   );
 }

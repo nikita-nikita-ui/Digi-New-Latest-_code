@@ -29,7 +29,7 @@ const menuItems = [
   //   route: "/usersmanagement",
   // },
   {
-    label: "Local Needs",
+    label: "Local Tasks",
     icon: MapPin,
     route: "/needsManagement",
   },

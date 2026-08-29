@@ -110,7 +110,7 @@ const LocalNeeds = () => {
           <div>
             <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
               <Sparkles className="text-indigo-600 animate-pulse" size={28} />
-              Local Needs Management
+              Local Tasks Management
             </h1>
             <p className="text-slate-500 text-sm mt-1">
               Admin Control Hub - Create, update, view and delete regional jobs and assignments.
@@ -151,7 +151,7 @@ const LocalNeeds = () => {
               className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl shadow-lg shadow-indigo-100 hover:shadow-indigo-200 transition-all duration-250 transform hover:-translate-y-0.5 active:translate-y-0 w-full sm:w-auto text-sm cursor-pointer"
             >
               <Plus size={18} strokeWidth={3} />
-              Post New Need
+              Post New Task
             </button>
           </div>
         </div>
@@ -162,7 +162,7 @@ const LocalNeeds = () => {
               <thead>
                 <tr className="bg-slate-50/75 border-b border-slate-100 text-slate-500 text-xs font-bold uppercase tracking-wider">
                   <th className="py-4.5 px-6 text-center w-16">#</th>
-                  <th className="py-4.5 px-4 w-28">Need Asset</th>
+                  <th className="py-4.5 px-4 w-28">Task Asset</th>
                   <th className="py-4.5 px-6 w-72">Title & Specifications</th>
                   <th className="py-4.5 px-6 w-56">Sender profile</th>
                   <th className="py-4.5 px-6 w-80">Location Address</th>
@@ -265,14 +265,14 @@ const LocalNeeds = () => {
                           <button
                             onClick={() => handleEdit(t)}
                             className="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-900 rounded-xl transition-all duration-150 cursor-pointer border border-indigo-100/50"
-                            title="Edit Need"
+                            title="Edit Task"
                           >
                             <Edit3 size={15} />
                           </button>
                           <button
                             onClick={() => handleDelete(t._id)}
                             className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-950 rounded-xl transition-all duration-150 cursor-pointer border border-rose-100/50"
-                            title="Delete Need"
+                            title="Delete Task"
                           >
                             <Trash2 size={15} />
                           </button>
@@ -346,7 +346,7 @@ const LocalNeeds = () => {
                   Confirm Deletion
                 </h2>
                 <p className="text-slate-500 text-sm">
-                  Are you sure you want to permanently remove this local need assignment? This action is irreversible.
+                  Are you sure you want to permanently remove this local task assignment? This action is irreversible.
                 </p>
               </div>
             </div>
@@ -361,7 +361,7 @@ const LocalNeeds = () => {
                 onClick={confirmDelete}
                 className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-rose-100 hover:shadow-rose-200 transition duration-150 cursor-pointer"
               >
-                Yes, Delete Need
+                Yes, Delete Task
               </button>
             </div>
           </div>
@@ -521,8 +521,8 @@ const ThemedTaskModal = ({ onSave, onClose, initialData, isViewMode }) => {
               {isViewMode
                 ? "View Specifications"
                 : initialData
-                  ? "Adjust Need Fields"
-                  : "Post A New Need"}
+                  ? "Adjust Task Fields"
+                  : "Post A New Task"}
             </h2>
           </div>
           <button 
@@ -760,7 +760,7 @@ const ThemedTaskModal = ({ onSave, onClose, initialData, isViewMode }) => {
               />
               <span className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
                 <Sparkles size={16} className="text-amber-500" />
-                Highlight as Featured Need
+                Highlight as Featured Task
               </span>
             </label>
           </div>
@@ -778,7 +778,7 @@ const ThemedTaskModal = ({ onSave, onClose, initialData, isViewMode }) => {
                 type="submit"
                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl font-bold text-sm shadow-lg shadow-indigo-100 hover:shadow-indigo-200 transition duration-150 cursor-pointer"
               >
-                {initialData ? "Save Alterations" : "Broadcast Need"}
+                {initialData ? "Save Alterations" : "Broadcast Task"}
               </button>
             )}
           </div>
