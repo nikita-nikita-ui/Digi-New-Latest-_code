@@ -7,7 +7,7 @@ import ProtectedRoute from "./auth/ProtectedRoute";
 import Dashboard from "./pages/Dashboard/Dashboard";
 import Login from "./Authentication/Login";
 import ManageUsers from "./pages/User_Management/ManageUsers";
-import LocalNeeds from "./pages/Locals/LocalNeeds";
+import LocalTask from "./pages/LocalNeeds/LocalNeeds";
 import PartTimeJobs from "./pages/Jobs/PartTimeJobs";
 import FullTimeJobs from "./pages/Jobs/FullTimeJobs";
 import AllAdmin from "./pages/All_Admin/Alladmin";
@@ -55,7 +55,7 @@ function App() {
           <Route index element={<Dashboard />} />
 
           <Route path="/usersmanagement" element={<ManageUsers />} />
-          <Route path="/needsManagement" element={<LocalNeeds />} />
+          <Route path="/needsManagement" element={<LocalTask />} />
           <Route path="/PartTimeJobs" element={<PartTimeJobs />} />
           <Route path="/FullTimeJobs" element={<FullTimeJobs />} />
           <Route path="/all-admin" element={<AllAdmin />} />
