@@ -25,9 +25,8 @@ import Moderation from "./pages/ModerationBlocking/Moderationblocking";
 import Setting from "./pages/SystemSetting/Systemsetting";
 // import Reports from "./pages/Report_Export/Report_export";
 import Business from "./pages/Business_Varifies/business-verify";
-import UserPartTimeJobs from "./pages/Jobs/UserPartTime";
+
 import UserFullJobs from "./pages/Jobs/UserFullTime";
-import UserLocalNeed from "./pages/LocalNeeds/UserLocalNeed";
 import UserMarketPlace from "./pages/Marketplace/UserMarketPlace";
 import Coupon from "./pages/Credits-Management/CouponModule";
 import JobCategoryModule from "./pages/Categories/Job_category";
@@ -74,9 +73,9 @@ function App() {
           <Route path="/systemsetting" element={<Setting />} />
           {/* <Route path="/report" element={<Reports />} /> */}
           <Route path="/business" element={<Business />} />
-          <Route path="/user-part" element={<UserPartTimeJobs />} />
+       
           <Route path="/user-full" element={<UserFullJobs />} />
-          <Route path="/user-local" element={<UserLocalNeed />} />
+         
           <Route path="/user-marketplace" element={<UserMarketPlace />} />
           <Route path="/coupon" element={<Coupon />} />
           <Route path="/banner-management" element={<BannerManagement />} />

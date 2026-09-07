@@ -6,7 +6,8 @@ import {
   updateLocalJob,
 } from "../../auth/adminLogin";
 import { toast } from "react-toastify";
-import { useNavigate } from "react-router-dom";
+import UnlockedUsersModal from "./Unlockedusersmodal";
+import PostTaskModal from "./PostTaskModal";
 import { 
   Plus, Eye, Edit3, Trash2, MapPin, Phone, MessageSquare, 
   X, ChevronLeft, ChevronRight, Sparkles, DollarSign, 
@@ -14,72 +15,73 @@ import {
 } from "lucide-react";
 
 const LocalNeeds = () => {
-  const navigate = useNavigate();
+
   const [tasks, setTasks] = useState([]);
   const [isPostModalOpen, setIsPostModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({});
-  const [jobType, setJobType] = useState("ADMIN");
+const [analytics, setAnalytics] = useState({});
+
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [isViewMode, setIsViewMode] = useState(false);
-
+const [isUserListOpen, setIsUserListOpen] = useState(false);
   useEffect(() => {
     const fetchJobs = async () => {
       try {
-        const res = await getAllLocalJobs(page);
-        setTasks(res.data || []);
-        setPagination(res.pagination || {});
+       const res = await getAllLocalJobs(page);
+
+setTasks(res.data || []);
+setPagination(res.pagination || {});
+setAnalytics(res.analytics || {});
       } catch (err) {
         console.error(err);
       }
     };
     fetchJobs();
   }, [page]);
+const handlePostNewAPI = async (formData, id) => {
+  try {
+    let res;
 
-  const handlePostNewAPI = async (newTask, id) => {
-    try {
-      const formData = new FormData();
-      formData.append("title", newTask.title);
-      formData.append("details", newTask.details);
-      formData.append("jobCategory", "LOCAL_JOB");
-      formData.append("isFeatured", newTask.isFeatured);
-      formData.append("workType", newTask.workType);
-      formData.append("whatsappNumber", newTask.whatsappNumber);
-      formData.append("budget[min]", newTask.budget.min);
-      formData.append("budget[max]", newTask.budget.max);
+    if (id) {
+      // UPDATE
+      res = await updateLocalJob(id, formData);
 
-      newTask.preferredCommunication.forEach((item) => {
-        formData.append("preferredCommunication[]", item);
+      setTasks((prev) =>
+        prev.map((item) =>
+          item._id === id ? res.data : item
+        )
+      );
+
+      toast.success("Updated successfully", {
+        autoClose: 4000,
       });
-      formData.append("location[type]", "Point");
-      formData.append("location[coordinates][]", newTask.location.coordinates[0]);
-      formData.append("location[coordinates][]", newTask.location.coordinates[1]);
-      formData.append("location[address]", newTask.location.address);
+    } else {
+      // CREATE
+      res = await createLocalJob(formData);
 
-      if (newTask.images) {
-        formData.append("images", newTask.images);
-      }
+      setTasks((prev) => [res.data, ...prev]);
 
-      let res;
-      if (id) {
-        res = await updateLocalJob(id, formData);
-        setTasks((prev) =>
-          prev.map((item) => (item._id === id ? res.data : item))
-        );
-        toast.success("Updated successfully", { autoClose: 4000 });
-      } else {
-        res = await createLocalJob(formData);
-        setTasks((prev) => [res.data, ...prev]);
-        toast.success("Posted successfully", { autoClose: 4000 });
-      }
-      setIsPostModalOpen(false);
-    } catch (err) {
-      console.error(err);
+      toast.success("Posted successfully", {
+        autoClose: 4000,
+      });
     }
-  };
 
+    setIsPostModalOpen(false);
+    setSelectedTask(null);
+  } catch (err) {
+    console.error("Local Job API Error:", err);
+
+    toast.error(
+      err?.response?.data?.message || "Something went wrong",
+      {
+        autoClose: 4000,
+      }
+    );
+  }
+};
   const handleDelete = (id) => {
     setSelectedTaskId(id);
     setIsDeleteModalOpen(true);
@@ -103,8 +105,7 @@ const LocalNeeds = () => {
   };
 
   return (
-    <div className="p-4 md:p-6  min-h-screen font-sans selection:bg-indigo-500 selection:text-white w-full m-4">
-      <div className="w-full space-y-6">
+<div className="p-4 md:p-6 min-h-screen font-sans selection:bg-indigo-500 selection:text-white w-full">      <div className="w-full space-y-6">
         
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm transition-all duration-300 w-full">
           <div>
@@ -118,29 +119,7 @@ const LocalNeeds = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-            <div className="relative w-full sm:w-48">
-              <select
-                value={jobType}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setJobType(value);
-                  if (value === "ADMIN") {
-                    navigate("/needsManagement");
-                  } else if (value === "USER") {
-                    navigate("/user-local");
-                  }
-                }}
-                className="w-full pl-4 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-700 text-sm font-semibold focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all duration-200 cursor-pointer appearance-none"
-              >
-                <option value="ADMIN">Admin Panel View</option>
-                <option value="USER">User Panel View</option>
-              </select>
-              <div className="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-slate-400">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </div>
+         
 
             <button
               onClick={() => {
@@ -156,20 +135,101 @@ const LocalNeeds = () => {
           </div>
         </div>
 
+<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+
+
+<div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
+    <p className="text-xs font-bold text-slate-500 uppercase">
+      Total Tasks
+    </p>
+    <p className="text-2xl font-extrabold text-slate-900 mt-2">
+      {analytics.totalLocalJobs || 0}
+    </p>
+  </div>
+
+  <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
+    <p className="text-xs font-bold text-slate-500 uppercase">
+      Active Tasks
+    </p>
+    <p className="text-2xl font-extrabold text-emerald-600 mt-2">
+      {analytics.activeLocalJobs || 0}
+    </p>
+  </div>
+
+  <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
+    <p className="text-xs font-bold text-slate-500 uppercase">
+      Expired Tasks
+    </p>
+    <p className="text-2xl font-extrabold text-rose-600 mt-2">
+      {analytics.expiredLocalJobs || 0}
+    </p>
+  </div>
+
+  <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
+    <p className="text-xs font-bold text-slate-500 uppercase">
+      Featured Tasks
+    </p>
+    <p className="text-2xl font-extrabold text-amber-600 mt-2">
+      {analytics.featuredLocalJobs || 0}
+    </p>
+  </div>
+
+  <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
+    <p className="text-xs font-bold text-slate-500 uppercase">
+      Total Unlocks
+    </p>
+    <p className="text-2xl font-extrabold text-indigo-600 mt-2">
+      {analytics.totalUnlocksForAllLocalJobs || 0}
+    </p>
+  </div>
+
+  <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
+    <p className="text-xs font-bold text-slate-500 uppercase">
+      Posting Credits
+    </p>
+
+    <p className="text-2xl font-extrabold text-slate-900 mt-2">
+      {analytics.credits?.totalPostingCredits || 0}
+    </p>
+  </div>
+
+  <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
+    <p className="text-xs font-bold text-slate-500 uppercase">
+      Unlock Credits
+    </p>
+
+    <p className="text-2xl font-extrabold text-slate-900 mt-2">
+      {analytics.credits?.totalUnlockCredits || 0}
+    </p>
+  </div>
+
+  <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
+    <p className="text-xs font-bold text-slate-500 uppercase">
+      Total Credits Spent
+    </p>
+
+    <p className="text-2xl font-extrabold text-indigo-600 mt-2">
+      {analytics.credits?.overallTotalCreditsSpent || 0}
+    </p>
+  </div>
+
+</div>
+
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden transition-all duration-300 w-full">
           <div className="overflow-x-auto w-full">
             <table className="w-full text-left border-collapse table-fixed">
               <thead>
                 <tr className="bg-slate-50/75 border-b border-slate-100 text-slate-500 text-xs font-bold uppercase tracking-wider">
-                  <th className="py-4.5 px-6 text-center w-16">#</th>
+                  <th className="py-4.5 px-6 text-center w-16">SNo.</th>
                   <th className="py-4.5 px-4 w-28">Task Asset</th>
-                  <th className="py-4.5 px-6 w-72">Title & Specifications</th>
-                  <th className="py-4.5 px-6 w-56">Sender profile</th>
-                  <th className="py-4.5 px-6 w-80">Location Address</th>
-                  <th className="py-4.5 px-6 w-36">Work Format</th>
-                  <th className="py-4.5 px-6 w-44">WhatsApp Hub</th>
-                  <th className="py-4.5 px-6 w-32">Status</th>
-                  <th className="py-4.5 px-6 text-center w-36">Actions</th>
+                  <th className="py-4.5 px-4 w-52">Title & Specifications</th>
+                  <th className="py-4.5 px-4 w-56">Sender profile</th>
+                  <th className="py-4.5 px-4 w-70">Location Address</th>
+                  <th className="py-4.5 px-4 w-36">Work Format</th>
+                  <th className="py-4.5 px-4 w-40">WhatsApp Hub</th>
+                  <th className="py-4.5 px-3 w-32">Status</th>
+                  <th className="py-4.5 px-4 text-center w-36">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
@@ -199,16 +259,14 @@ const LocalNeeds = () => {
                           <p className="font-semibold text-slate-800 text-base truncate group-hover:text-indigo-600 transition-colors duration-150">
                             {t.title}
                           </p>
-                          <p className="text-xs text-slate-400 truncate font-mono">
-                            ID: {t._id}
-                          </p>
+                          
                         </div>
                       </td>
                       <td className="py-5 px-6">
                         <div className="flex flex-col gap-1 overflow-hidden">
                           <span className="font-semibold text-slate-700 flex items-center gap-1.5 truncate">
                             <User size={13} className="text-slate-400 shrink-0" />
-                            {t.userId?.name || "N/A"}
+                            {t.userId?.fullName || "N/A"}
                           </span>
                           <span className={`inline-flex items-center gap-1 self-start px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase border ${
                             t.userId?.role === "ADMIN" 
@@ -321,18 +379,30 @@ const LocalNeeds = () => {
 
       </div>
 
-      {isPostModalOpen && (
-        <ThemedTaskModal
-          initialData={selectedTask}
-          onSave={handlePostNewAPI}
-          isViewMode={isViewMode}
-          onClose={() => {
-            setIsPostModalOpen(false);
-            setSelectedTask(null);
-            setIsViewMode(false);
-          }}
-        />
-      )}
+   {isPostModalOpen && isViewMode && (
+  <ThemedTaskModal
+    initialData={selectedTask}
+    analytics={analytics}
+    isViewMode={isViewMode}
+    onClose={() => {
+      setIsPostModalOpen(false);
+      setSelectedTask(null);
+      setIsViewMode(false);
+    }}
+  />
+)}
+
+{isPostModalOpen && !isViewMode && (
+  <PostTaskModal
+    initialData={selectedTask}
+    onSave={handlePostNewAPI}
+    onClose={() => {
+      setIsPostModalOpen(false);
+      setSelectedTask(null);
+      setIsViewMode(false);
+    }}
+  />
+)}
 
       {isDeleteModalOpen && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all duration-300">
@@ -371,8 +441,15 @@ const LocalNeeds = () => {
   );
 };
 
-const ThemedTaskModal = ({ onSave, onClose, initialData, isViewMode }) => {
+const ThemedTaskModal = ({
+  onSave,
+  onClose,
+  initialData,
+  isViewMode,
+  analytics,
+}) => {
   const [previewImage, setPreviewImage] = useState(null);
+  const [isUserListOpen, setIsUserListOpen] = useState(false); 
   const [formData, setFormData] = useState({
     title: "",
     details: "",
@@ -396,7 +473,7 @@ const ThemedTaskModal = ({ onSave, onClose, initialData, isViewMode }) => {
       details: initialData.details || "",
       workType: initialData.workType || "",
       whatsappNumber: initialData.whatsappNumber || "",
-      userName: initialData.userId?.name || "N/A",
+      userName: initialData.userId?.fullName || "N/A",
       userRole: initialData.userId?.role || "N/A",
       budget: {
         min: initialData.budget?.min || "",
@@ -535,236 +612,144 @@ const ThemedTaskModal = ({ onSave, onClose, initialData, isViewMode }) => {
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5 bg-white text-slate-700">
           
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Title / Brief Heading</label>
-            <input
-              name="title"
-              value={formData.title}
-              onChange={handleChange}
-              disabled={isViewMode}
-              placeholder="e.g. Graphic Designer for Local Agency"
-              className="w-full border border-slate-200 bg-slate-50 disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed p-3.5 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-medium text-slate-800 transition-all"
-            />
-          </div>
+ {isViewMode && initialData && (
+  <div className="space-y-4">
+    {/* Profile Card */}
+    <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 p-4 rounded-2xl">
+      {initialData.userId?.profilePhoto ? (
+        <img
+          src={initialData.userId.profilePhoto}
+          alt={initialData.userId?.fullName}
+          className="w-16 h-16 rounded-full object-cover border border-slate-200"
+        />
+      ) : (
+        <div className="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center">
+          <User size={24} className="text-indigo-600" />
+        </div>
+      )}
+      <div>
+        <p className="font-bold text-slate-800 text-base">
+          {initialData.userId?.fullName || "N/A"}
+        </p>
+        <p className="text-sm text-slate-500">
+          {initialData.userId?.mobile || "N/A"}
+        </p>
+        <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-blue-50 text-blue-700 border border-blue-100">
+          <Shield size={10} />
+          {initialData.userId?.role || "USER"}
+        </span>
+      </div>
+    </div>
 
-          {initialData && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Posted By</label>
-                <div className="w-full border border-slate-200 bg-slate-50 p-3.5 rounded-2xl text-slate-500 flex items-center gap-2 font-medium">
-                  <User size={16} className="text-slate-400" />
-                  {formData.userName}
-                </div>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Author Identity Role</label>
-                <div className="w-full border border-slate-200 bg-slate-50 p-3.5 rounded-2xl text-slate-500 flex items-center gap-2 font-medium">
-                  <Shield size={16} className="text-slate-400" />
-                  <span className="uppercase tracking-wider text-xs font-bold">{formData.userRole}</span>
-                </div>
-              </div>
-            </div>
-          )}
+    {/* Status + Featured */}
+    <div className="grid grid-cols-2 gap-4">
+      <div className="space-y-1">
+        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+          Status
+        </label>
+        <div
+          className={`w-full border p-3.5 rounded-2xl font-bold text-sm flex items-center gap-2 ${
+            initialData.status === "active" || initialData.status === "open"
+              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+              : "bg-rose-50 text-rose-700 border-rose-200"
+          }`}
+        >
+          <span
+            className={`w-2 h-2 rounded-full ${
+              initialData.status === "active" || initialData.status === "open"
+                ? "bg-emerald-500"
+                : "bg-rose-500"
+            }`}
+          />
+          {initialData.status || "inactive"}
+        </div>
+      </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Comprehensive Details</label>
-            <textarea
-              name="details"
-              value={formData.details}
-              onChange={handleChange}
-              disabled={isViewMode}
-              rows={4}
-              placeholder="State clear guidelines, project terms, specific skill demands, and timeline expectations..."
-              className="w-full border border-slate-200 bg-slate-50 disabled:bg-slate-50 disabled:text-slate-500 p-4 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-medium text-slate-800 transition-all resize-none"
-            />
-          </div>
+      <div className="space-y-1">
+        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+          Featured
+        </label>
+        <div
+          className={`w-full border p-3.5 rounded-2xl font-bold text-sm flex items-center gap-2 ${
+            initialData.isFeatured
+              ? "bg-amber-50 text-amber-700 border-amber-200"
+              : "bg-slate-50 text-slate-500 border-slate-200"
+          }`}
+        >
+          <Sparkles size={15} className={initialData.isFeatured ? "text-amber-500" : "text-slate-400"} />
+          {initialData.isFeatured ? "Yes, Featured" : "Not Featured"}
+        </div>
+      </div>
+    </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Work Arrangement Category</label>
-              <input
-                name="workType"
-                value={formData.workType}
-                onChange={handleChange}
-                disabled={isViewMode}
-                placeholder="e.g. Remote, On-Site, Hybrid"
-                className="w-full border border-slate-200 bg-slate-50 disabled:bg-slate-50 p-3.5 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-semibold text-slate-800 transition-all"
-              />
-            </div>
+    {/* WhatsApp Number */}
+    <div className="space-y-1">
+      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+        WhatsApp Contact Number
+      </label>
+      <div className="w-full border border-slate-200 bg-slate-50 p-3.5 rounded-2xl font-semibold text-slate-800 flex items-center gap-2">
+        <Phone size={16} className="text-emerald-500" />
+        {initialData.whatsappNumber || "N/A"}
+      </div>
+    </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">WhatsApp Contact Number</label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
-                  <Phone size={16} />
-                </span>
-                <input
-                  name="whatsappNumber"
-                  value={formData.whatsappNumber}
-                  onChange={handleChange}
-                  disabled={isViewMode}
-                  placeholder="e.g. 9876543210"
-                  className="w-full pl-10 pr-4 py-3.5 border border-slate-200 bg-slate-50 disabled:bg-slate-50 p-3.5 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-semibold text-slate-800 transition-all"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2 bg-slate-50 p-5 rounded-3xl border border-slate-150">
-            <div className="flex justify-between items-center">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Geographical Address</label>
-              {!isViewMode && (
-                <button
-                  type="button"
-                  onClick={fetchLocation}
-                  className="flex items-center gap-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100/80 px-3 py-1.5 text-xs font-bold rounded-xl transition duration-150 cursor-pointer border border-indigo-150"
-                >
-                  <Navigation size={12} strokeWidth={2.5} />
-                  Fetch Coordinates
-                </button>
+    {/* Communication Preferences */}
+    <div className="space-y-1">
+      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+        Communication Preferences
+      </label>
+      <div className="flex gap-3">
+        {initialData.preferredCommunication?.length > 0 ? (
+          initialData.preferredCommunication.map((pref) => (
+            <span
+              key={pref}
+              className="flex items-center gap-1.5 bg-indigo-50 text-indigo-700 border border-indigo-100 px-4 py-2 rounded-xl text-sm font-bold"
+            >
+              {pref === "Chat" ? (
+                <MessageSquare size={14} className="text-emerald-500" />
+              ) : (
+                <Phone size={14} className="text-indigo-500" />
               )}
-            </div>
-            <input
-              name="location.address"
-              value={formData.location.address}
-              onChange={handleChange}
-              disabled={isViewMode}
-              placeholder="Full location street address, city name"
-              className="w-full border border-slate-200 bg-white disabled:bg-slate-100 p-3.5 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-medium text-slate-800 transition-all"
-            />
-            
-            <div className="flex flex-wrap items-center gap-4 pt-1.5 text-xs font-bold text-slate-400">
-              <span className="flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
-                Longitude: {formData.location.coordinates[0] || "None"}
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                Latitude: {formData.location.coordinates[1] || "None"}
-              </span>
-            </div>
-          </div>
+              {pref}
+            </span>
+          ))
+        ) : (
+          <span className="text-sm text-slate-400">None specified</span>
+        )}
+      </div>
+    </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Minimum Budget ($)</label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
-                  <DollarSign size={16} />
-                </span>
-                <input
-                  name="budget.min"
-                  value={formData.budget.min}
-                  onChange={handleChange}
-                  disabled={isViewMode}
-                  placeholder="e.g. 500"
-                  className="w-full pl-10 pr-4 py-3.5 border border-slate-200 bg-slate-50 disabled:bg-slate-50 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-semibold text-slate-800 transition-all"
-                />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Maximum Budget ($)</label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
-                  <DollarSign size={16} />
-                </span>
-                <input
-                  name="budget.max"
-                  value={formData.budget.max}
-                  onChange={handleChange}
-                  disabled={isViewMode}
-                  placeholder="e.g. 1500"
-                  className="w-full pl-10 pr-4 py-3.5 border border-slate-200 bg-slate-50 disabled:bg-slate-50 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-semibold text-slate-800 transition-all"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Communication preferences</label>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 cursor-pointer select-none text-sm font-semibold hover:bg-slate-100 transition-all">
-                <input
-                  type="checkbox"
-                  value="Whatsapp"
-                  checked={formData.preferredCommunication.includes("Whatsapp")}
-                  onChange={handleChange}
-                  name="preferredCommunication"
-                  disabled={isViewMode}
-                  className="w-4.5 h-4.5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
-                />
-                <span className="flex items-center gap-1.5">
-                  <MessageSquare size={15} className="text-emerald-500" />
-                  Whatsapp
-                </span>
-              </label>
-              
-              <label className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 cursor-pointer select-none text-sm font-semibold hover:bg-slate-100 transition-all">
-                <input
-                  type="checkbox"
-                  value="Call"
-                  checked={formData.preferredCommunication.includes("Call")}
-                  onChange={handleChange}
-                  name="preferredCommunication"
-                  disabled={isViewMode}
-                  className="w-4.5 h-4.5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
-                />
-                <span className="flex items-center gap-1.5">
-                  <Phone size={15} className="text-indigo-500" />
-                  Direct Call
-                </span>
-              </label>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Attached Visual Resource</label>
-            {!isViewMode && (
-              <div className="border-2 border-dashed border-slate-300 hover:border-indigo-400 bg-slate-50 hover:bg-slate-100/50 p-6 rounded-2xl text-center cursor-pointer transition-all duration-200">
-                <input
-                  type="file"
-                  name="images"
-                  onChange={handleChange}
-                  className="hidden"
-                  id="imageUpload"
-                />
-                <label
-                  htmlFor="imageUpload"
-                  className="cursor-pointer text-indigo-600 font-bold text-sm flex flex-col items-center gap-1"
-                >
-                  <Image size={24} className="text-indigo-500 mb-1" />
-                  Click to drop or select visual files
-                </label>
-              </div>
-            )}
-            {previewImage && (
-              <div className="relative inline-block mt-2">
-                <img
-                  src={previewImage}
-                  alt="preview"
-                  className="w-36 h-36 object-cover rounded-2xl border-2 border-slate-200 shadow-sm"
-                />
-              </div>
-            )}
-          </div>
-
-          <div className="pt-2">
-            <label className="flex gap-2.5 items-center select-none cursor-pointer">
-              <input
-                type="checkbox"
-                name="isFeatured"
-                checked={formData.isFeatured}
-                onChange={handleChange}
-                disabled={isViewMode}
-                className="w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
-              />
-              <span className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                <Sparkles size={16} className="text-amber-500" />
-                Highlight as Featured Task
-              </span>
-            </label>
-          </div>
-
+    {/* Credits + Unlocks */}
+    <div className="grid grid-cols-2 gap-4">
+      <div className="space-y-1">
+        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+          Credits Spent on Task
+        </label>
+        <div className="w-full border border-slate-200 bg-slate-50 p-3.5 rounded-2xl text-slate-800 font-bold">
+          {initialData.creditsSpent || 0}
+        </div>
+      </div>
+      <div className="space-y-1">
+        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+          Number of Unlocks
+        </label>
+        <div className="w-full border border-slate-200 bg-slate-50 p-3.5 rounded-2xl text-slate-800 font-bold">
+          {initialData.jobUnlockCount || 0}
+        </div>
+      </div>
+    </div>
+    {initialData.jobUnlockCount > 0 && (
+<button
+  type="button"
+  onClick={() => setIsUserListOpen(true)}
+  className="flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-100 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer"
+>
+  <User size={15} />
+  View User Details ({initialData.jobUnlockCount || 0})
+</button>
+)}
+  </div>
+)}
           <div className="flex justify-end gap-2.5 pt-5 border-t border-slate-100">
             <button
               type="button"
@@ -784,6 +769,12 @@ const ThemedTaskModal = ({ onSave, onClose, initialData, isViewMode }) => {
           </div>
         </form>
       </div>
+      {isUserListOpen && (
+  <UnlockedUsersModal
+    users={initialData.unlockedByUsers || []}
+    onClose={() => setIsUserListOpen(false)}
+  />
+)}
     </div>
   );
 };

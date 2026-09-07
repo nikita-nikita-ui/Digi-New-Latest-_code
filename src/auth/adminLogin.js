@@ -86,15 +86,39 @@ export const getDashboardStats = async () => {
     throw error.response ? error.response.data : new Error("Network Error");
   }
 };
-export const getAllJobs = async (page = 1) => {
+export const getRegularPartTimeJobs = async (page = 1, limit = 10) => {
   try {
-    const token = localStorage.getItem("token");
-    const response = await apiClient.get(`/admin/part-time/jobs?page=${page}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const response = await apiClient.get(
+      "/admin/part-time/regular-jobs",
+      {
+        params: {
+          page,
+          limit,
+        },
+      }
+    );
+
     return response.data;
   } catch (error) {
-    throw error.response ? error.response.data : new Error("Network Error");
+    throw error;
+  }
+};
+
+
+export const getJobCategoriesByType = async (type) => {
+  try {
+    const response = await apiClient.get(
+      "/admin/jobsCategory/getCategoriesByType",
+      {
+        params: {
+          type: type,
+        },
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    throw error;
   }
 };
 // --- Get Job By ID (Part-Time) ---
@@ -108,38 +132,22 @@ export const getJobById = async (id) => {
 };
 
 // --- UPDATE JOB (Part-Time) ---
-export const updateJob = async (id, jobData) => {
+
+export const updatePartTimeJob = async (jobId, formData) => {
   try {
-    // Bahut important: Check karein ki adminId kis naam se stored hai
-    // Kyunki login function mein aap "userId" use kar rahe hain
-    const adminId =
-      localStorage.getItem("id") || localStorage.getItem("userId");
-
-    let dataToSend;
-    if (jobData instanceof FormData) {
-      dataToSend = jobData;
-      // Agar adminId milta hai toh use append karein
-      if (adminId) {
-        // Ensure karein ki duplicate append na ho agar pehle se component me add kiya hai
-        if (!dataToSend.has("updatedBy")) {
-          dataToSend.append("updatedBy", adminId);
-        }
-      }
-    } else {
-      dataToSend = { ...jobData, updatedBy: adminId };
-    }
-
     const response = await apiClient.put(
-      `/admin/part-time/job/update/${id}`,
-      dataToSend,
+      `/admin/part-time/job/update/${jobId}`,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
     );
 
     return response.data;
   } catch (error) {
-    console.error("Update Job API Error:", error);
-    throw error.response
-      ? error.response.data
-      : new Error("Network Error or Server Unreachable");
+    throw error;
   }
 };
 
@@ -1030,10 +1038,14 @@ export const postLocalJob = async (jobData) => {
 
 // --- GET ALL REGULAR PART-TIME JOBS ---
 export const getAllRegularJobs = async (page = 1, searchTerm = "") => {
+
   try {
     const token = localStorage.getItem("token");
+
     const response = await apiClient.get(
+
       `/admin/part-time/regular-jobs?page=${page}&title=${searchTerm}`,
+      
       { headers: { Authorization: `Bearer ${token}` } },
     );
     return response.data;
@@ -1056,28 +1068,25 @@ export const getNonAdminFullTimeJobs = async (page = 1) => {
   }
 };
 
-// --- CREATE LOCAL JOB (ADMIN) ---
-export const createLocalJob = async (jobData) => {
+// Create Local Job
+export const createLocalJob = async (data) => {
   try {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
-      throw new Error("No token found. Please login as admin.");
-    }
-
-    const response = await apiClient.post("/admin/localJobs/create", jobData, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    const response = await apiClient.post(
+      "/admin/localJobs/create",
+      data,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
 
     return response.data;
   } catch (error) {
-    console.error("CREATE LOCAL JOB ERROR:", error);
-    throw error.response ? error.response.data : new Error("Network Error");
+    throw error;
   }
 };
+
 
 export const deleteLocalJob = async (id) => {
   try {
@@ -1096,25 +1105,47 @@ export const deleteLocalJob = async (id) => {
   }
 };
 
-export const getAllLocalJobs = async (page = 1) => {
+export const getAllLocalJobs = async (page = 1, pageSize = 10) => {
   try {
-    const token = localStorage.getItem("token");
-
     const response = await apiClient.get(
-      `/admin/localJobs/admin-get-jobs?page=${page}`,
+      "/admin/localjobs/public/local-jobs",
       {
-        headers: {
-          Authorization: `Bearer ${token}`,
+        params: {
+          page,
+          pageSize,
         },
-      },
+      }
     );
 
-    return response.data; // { success, count, pagination, data: [...] }
+    return response.data;
   } catch (error) {
-    console.error("GET LOCAL JOBS ERROR:", error);
-    throw error.response ? error.response.data : new Error("Network Error");
+    throw error;
   }
 };
+
+// Get Local Job Users
+export const getLocalJobUsers = async (page = 1, limit = 10) => {
+  try {
+    const response = await apiClient.get(
+
+      "/admin/localJobs/user-list",
+      {
+        params: {
+          page,
+          limit,
+        },
+      }
+    );
+
+    return response.data;
+
+  } catch (error) {
+    throw error;
+  }
+};
+
+
+
 
 export const getPublicUserLocalJobs = async (page = 1) => {
   try {

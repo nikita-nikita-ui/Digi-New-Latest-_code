@@ -20,18 +20,21 @@ import {
   IndianRupee,
 } from "lucide-react";
 import {
-  getAllJobs,
-  updateJob,
+  getRegularPartTimeJobs,
+  updatePartTimeJob,
   deleteJob,
-  createNewJob,
-  getAllUsersAPI,
+  getLocalJobUsers,
+  getJobCategoriesByType
 } from "../../auth/adminLogin";
+import PostPartTimeJob from "./PostPartTimeJob";
+import ViewUserDetail from "./ViewUserDetail";
 import toast, { Toaster } from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
 const JobViewModal = ({ isOpen, onClose, job }) => {
+  const [showUserDetails, setShowUserDetails] = useState(false);
   if (!isOpen || !job) return null;
 
   return (
@@ -154,6 +157,34 @@ const JobViewModal = ({ isOpen, onClose, job }) => {
                   Method: {job.preferredCommunication?.join(", ") || "WhatsApp"}
                 </p>
               </div>
+              <div className="p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">
+                    Job Unlocks
+                  </p>
+                  <p className="text-sm font-bold text-slate-700 mt-1">
+                    How many users unlocked this job
+                  </p>
+                </div>
+
+                <div className="text-2xl font-bold text-indigo-600">
+                  {job.jobUnlockCount || 0}
+                </div>
+              </div>
+              {job.jobUnlockCount > 0 &&
+                job.unlockedByUsers?.length > 0 && (
+                  <button
+                    onClick={() => setShowUserDetails(true)}
+                    className="w-full p-4 bg-white border border-indigo-100 rounded-2xl text-indigo-600 text-xs font-bold hover:bg-indigo-50 transition-all"
+                  >
+                    View Details of Users
+                  </button>
+                )}
+                  <ViewUserDetail
+        isOpen={showUserDetails}
+        onClose={() => setShowUserDetails(false)}
+        users={job.unlockedByUsers || []}
+      />
             </div>
           </div>
         </div>
@@ -173,7 +204,19 @@ const JobViewModal = ({ isOpen, onClose, job }) => {
 
 const PartTimeJobManagement = () => {
   const [allJobs, setAllJobs] = useState([]);
+  const [analytics, setAnalytics] = useState({
+    totalPartTimeJobs: 0,
+    activeJobs: 0,
+    expiredJobs: 0,
+    featuredJobs: 0,
+    totalUnlocksAcrossAllJobs: 0,
+    credits: {
+      totalCreditsSpent: 0,
+    },
+  });
   const [users, setUsers] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [categoryLoading, setCategoryLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [locLoading, setLocLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
@@ -183,15 +226,14 @@ const PartTimeJobManagement = () => {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
   const [selectedJob, setSelectedJob] = useState(null);
-  const [createImages, setCreateImages] = useState([]);
   const [editNewImages, setEditNewImages] = useState([]);
 
-  const createFileInputRef = useRef(null);
+
   const editFileInputRef = useRef(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [jobIdToDelete, setJobIdToDelete] = useState(null);
-  const [jobType, setJobType] = useState("ADMIN");
-  const navigate = useNavigate();
+
+
   const initialJobState = {
     userId: "",
     title: "",
@@ -213,29 +255,53 @@ const PartTimeJobManagement = () => {
     preferredCommunication: ["WhatsApp"],
   };
 
-  const [newJob, setNewJob] = useState(initialJobState);
+
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     fetchData();
-    fetchUsers();
   }, [currentPage]);
 
+  useEffect(() => {
+    fetchUsers();
+    fetchCategories();
+  }, []);
   const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await getAllJobs(currentPage);
-      const jobs = response?.data?.data || response?.data || response;
 
-      const sortedJobs = Array.isArray(jobs)
-        ? jobs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      const response = await getRegularPartTimeJobs(currentPage, 10);
+
+      const jobs = Array.isArray(response?.data)
+        ? response.data
         : [];
 
+      const sortedJobs = [...jobs].sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+      );
+
       setAllJobs(sortedJobs);
+
+      console.log("API RESPONSE:", response);
+      console.log("ANALYTICS:", response?.analytics);
+
+      setAnalytics(response?.analytics || {
+        totalPartTimeJobs: 0,
+        activeJobs: 0,
+        expiredJobs: 0,
+        featuredJobs: 0,
+        totalUnlocksAcrossAllJobs: 0,
+        credits: {
+          totalCreditsSpent: 0,
+        },
+      });
+
       setTotalPages(response?.pagination?.totalPages || 1);
+
     } catch (err) {
+      console.error("Error fetching regular part-time jobs:", err);
       toast.error("Error fetching job list");
     } finally {
       setLoading(false);
@@ -244,20 +310,37 @@ const PartTimeJobManagement = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await getAllUsersAPI();
-      if (response.success) setUsers(response.data);
+      const response = await getLocalJobUsers(1, 100);
+
+      if (response?.success) {
+        setUsers(Array.isArray(response.data) ? response.data : []);
+      } else {
+        setUsers([]);
+      }
     } catch (err) {
-      console.error("Failed to fetch users", err);
+      console.error("Failed to fetch local job users", err);
+      setUsers([]);
     }
   };
+  const fetchCategories = async () => {
+    try {
+      setCategoryLoading(true);
 
-  const filteredJobs = useMemo(() => {
-    return allJobs.filter((job) => {
-      const category = String(job.jobCategory || "").toLowerCase();
-      return category.includes("part");
-    });
-  }, [allJobs]);
+      // IMPORTANT: default type
+      const response = await getJobCategoriesByType("PART_TIME_JOB");
 
+      if (response?.success) {
+        setCategories(Array.isArray(response.data) ? response.data : []);
+      } else {
+        setCategories([]);
+      }
+    } catch (err) {
+      console.error("Failed to fetch part-time job categories", err);
+      setCategories([]);
+    } finally {
+      setCategoryLoading(false);
+    }
+  };
   const handleFetchLocation = (type) => {
     if (!navigator.geolocation) {
       toast.error("Geolocation is not supported");
@@ -300,56 +383,6 @@ const PartTimeJobManagement = () => {
     );
   };
 
-  const handleCreateNewJob = async () => {
-    if (!newJob.userId) return toast.error("Select a User first!");
-    if (!newJob.title?.trim()) return toast.error("Job Title is required!");
-
-    try {
-      setSaveLoading(true);
-      const formData = new FormData();
-
-      formData.append("title", newJob.title);
-      formData.append("description", newJob.description);
-      formData.append("details", newJob.details);
-      formData.append("companyName", newJob.companyName);
-      formData.append("jobRole", newJob.jobRole);
-      formData.append("vacancies", newJob.vacancies);
-      formData.append("whatsappNumber", newJob.whatsappNumber);
-      formData.append("experience", newJob.experience);
-      formData.append("qualification", newJob.qualification);
-      formData.append("isFeatured", String(newJob.isFeatured));
-      formData.append("jobCategory", "PART_TIME_JOB");
-
-      formData.append("salaryRange[min]", newJob.minPay);
-      formData.append("salaryRange[max]", newJob.maxPay);
-
-      formData.append("location[address]", newJob.address);
-      formData.append("location[type]", "Point");
-      formData.append("location[coordinates][0]", newJob.longitude);
-      formData.append("location[coordinates][1]", newJob.latitude);
-
-      createImages.forEach((file) => formData.append("images", file));
-
-      const response = await createNewJob(formData);
-      const isSuccess = response?.success || response?.data?.success;
-
-      if (isSuccess) {
-        toast.success("Job posted successfully!");
-        setIsCreateModalOpen(false);
-        setNewJob(initialJobState);
-        setCreateImages([]);
-        await fetchData();
-      } else {
-        toast.error(response?.message || "Failed to create job");
-      }
-    } catch (err) {
-      console.error("Error details:", err);
-      toast.error("Error creating job");
-    } finally {
-      setSaveLoading(false);
-    }
-  };
-
   const handleUpdateJob = async () => {
     if (!selectedJob?._id) {
       toast.error("Invalid Job ID! Please refresh and try again.");
@@ -358,31 +391,43 @@ const PartTimeJobManagement = () => {
 
     try {
       setSaveLoading(true);
+
       const formData = new FormData();
 
       formData.append("title", selectedJob.title || "");
       formData.append("description", selectedJob.description || "");
-      formData.append("details", selectedJob.details || "");
-      formData.append("companyName", selectedJob.companyName || "");
-      formData.append("jobRole", selectedJob.jobRole || "");
-      formData.append("vacancies", Number(selectedJob.vacancies) || 0);
-      formData.append("experience", selectedJob.experience || "Fresher");
+
       formData.append(
-        "qualification",
-        selectedJob.qualification || "10th Pass",
+        "userId",
+        typeof selectedJob.userId === "object"
+          ? selectedJob.userId?._id || selectedJob.userId?.id || ""
+          : selectedJob.userId || ""
       );
-      formData.append("whatsappNumber", selectedJob.whatsappNumber || "");
-      formData.append("isFeatured", String(selectedJob.isFeatured));
 
-      formData.append("salaryRange[min]", selectedJob.salaryRange?.min || "");
-      formData.append("salaryRange[max]", selectedJob.salaryRange?.max || "");
+      formData.append("categoryId", selectedJob.categoryId || "");
+      formData.append("subCategory", selectedJob.subCategory || "");
 
-      formData.append("location[address]", selectedJob.location?.address || "");
-      formData.append("location[type]", "Point");
+      formData.append(
+        "salaryRange",
+        JSON.stringify({
+          min: Number(selectedJob.salaryRange?.min) || 0,
+          max: Number(selectedJob.salaryRange?.max) || 0,
+        })
+      );
 
-      const lng = parseFloat(selectedJob.location?.coordinates?.[0]) || 72.8777;
-      const lat = parseFloat(selectedJob.location?.coordinates?.[1]) || 19.076;
+      formData.append(
+        "location[address]",
+        selectedJob.location?.address || ""
+      );
+
+      const lng =
+        parseFloat(selectedJob.location?.coordinates?.[0]) || 72.8777;
+
       formData.append("location[coordinates][0]", lng);
+
+      const lat =
+        parseFloat(selectedJob.location?.coordinates?.[1]) || 19.076;
+
       formData.append("location[coordinates][1]", lat);
 
       if (editNewImages && editNewImages.length > 0) {
@@ -393,28 +438,35 @@ const PartTimeJobManagement = () => {
         });
       }
 
-      const res = await updateJob(selectedJob._id, formData);
-      const isSuccess = res.success || res.data?.success;
-      const msg = res.message || res.data?.message;
+      formData.append("details", selectedJob.details || "");
+
+      // ✅ NEW CONTROLLER
+      const res = await updatePartTimeJob(selectedJob._id, formData);
+
+      const isSuccess = res?.success || res?.data?.success;
+      const msg = res?.message || res?.data?.message;
 
       if (isSuccess) {
         toast.success(msg || "Job updated successfully!");
         setIsEditModalOpen(false);
         setEditNewImages([]);
-        fetchData();
+        await fetchData();
       } else {
         toast.error(msg || "Update failed from server");
       }
     } catch (err) {
       console.error("Update Error:", err);
+
       const errorMessage =
-        err.response?.data?.message || "Job not found on server";
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        "Job update failed";
+
       toast.error(errorMessage);
     } finally {
       setSaveLoading(false);
     }
   };
-
   const handleDeleteConfirm = (id) => {
     setJobIdToDelete(id);
     setIsDeleteModalOpen(true);
@@ -437,27 +489,38 @@ const PartTimeJobManagement = () => {
       setJobIdToDelete(null);
     }
   };
-
   const openEditModal = (job) => {
     setSelectedJob({
       ...job,
-      experience: job.experience || "Fresher",
-      qualification: job.qualification || "10th Pass",
-      whatsappNumber: job.whatsappNumber || "",
+
+      userId:
+        typeof job.userId === "object"
+          ? job.userId?._id || job.userId?.id || ""
+          : job.userId || "",
+
+      categoryId: job.categoryId || "",
+
+      subCategory: job.subCategory || "",
+
       location: {
         address: job.location?.address || "",
         coordinates: job.location?.coordinates || [72.8777, 19.076],
         type: "Point",
       },
+
       salaryRange: {
         min: job.salaryRange?.min || "",
         max: job.salaryRange?.max || "",
       },
+
+      title: job.title || "",
+      description: job.description || "",
+      details: job.details || "",
     });
+
     setEditNewImages([]);
     setIsEditModalOpen(true);
   };
-
   return (
     <div className="p-4 md:p-8 bg-[#fafbfe] min-h-screen font-sans relative">
       <Toaster position="top-center" />
@@ -473,24 +536,6 @@ const PartTimeJobManagement = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          <select
-            value={jobType}
-            onChange={(e) => {
-              const value = e.target.value;
-              setJobType(value);
-
-              if (value === "ADMIN") {
-                navigate("/PartTimeJobs");
-              } else if (value === "USER") {
-                navigate("/user-part");
-              }
-            }}
-            className="w-36 bg-white border border-slate-200 text-slate-600 rounded-xl px-3 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all duration-200"
-          >
-            <option value="ADMIN">Admin</option>
-            <option value="USER">User</option>
-          </select>
-
           <button
             onClick={() => setIsCreateModalOpen(true)}
             className="bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition-all duration-200 flex items-center gap-2"
@@ -500,7 +545,70 @@ const PartTimeJobManagement = () => {
           </button>
         </div>
       </div>
+      {/* JOB ANALYTICS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
 
+        {/* TOTAL JOBS */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            Total Jobs
+          </p>
+          <p className="text-2xl font-bold text-slate-800 mt-2">
+            {analytics.totalPartTimeJobs}
+          </p>
+        </div>
+
+        {/* ACTIVE JOBS */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            Active Jobs
+          </p>
+          <p className="text-2xl font-bold text-emerald-500 mt-2">
+            {analytics.activeJobs}
+          </p>
+        </div>
+
+        {/* EXPIRED JOBS */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            Expired Jobs
+          </p>
+          <p className="text-2xl font-bold text-rose-500 mt-2">
+            {analytics.expiredJobs}
+          </p>
+        </div>
+
+        {/* FEATURED JOBS */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            Featured Jobs
+          </p>
+          <p className="text-2xl font-bold text-amber-500 mt-2">
+            {analytics.featuredJobs}
+          </p>
+        </div>
+
+        {/* TOTAL UNLOCKS */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            Total Unlocks for All Jobs
+          </p>
+          <p className="text-2xl font-bold text-indigo-500 mt-2">
+            {analytics.totalUnlocksAcrossAllJobs}
+          </p>
+        </div>
+
+        {/* TOTAL CREDITS SPENT */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            Total Credits Spent
+          </p>
+          <p className="text-2xl font-bold text-violet-500 mt-2">
+            {analytics.credits?.totalCreditsSpent || 0}
+          </p>
+        </div>
+
+      </div>
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -533,14 +641,14 @@ const PartTimeJobManagement = () => {
                     <Loader2 className="animate-spin mx-auto text-indigo-600" size={24} />
                   </td>
                 </tr>
-              ) : filteredJobs.length === 0 ? (
+              ) : allJobs.length === 0 ? (
                 <tr>
                   <td colSpan="6" className="p-16 text-center text-slate-400 text-sm">
                     No active part-time listings found
                   </td>
                 </tr>
               ) : (
-                filteredJobs.map((job, idx) => {
+                allJobs.map((job, idx) => {
                   const serialNumber = (currentPage - 1) * 10 + (idx + 1);
                   return (
                     <tr
@@ -643,252 +751,6 @@ const PartTimeJobManagement = () => {
         </div>
       </div>
 
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md transition-all duration-300 animate-fadeIn">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-100 animate-scaleUp border border-slate-100">
-            <div className="sticky top-0 bg-white/95 backdrop-blur z-10 flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h2 className="text-lg font-bold text-slate-800">
-                Post New Part-time Job
-              </h2>
-              <button
-                onClick={() => setIsCreateModalOpen(false)}
-                className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-full transition-all duration-200"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
-                    <User size={13} className="text-slate-400" /> Select Job Poster (User)*
-                  </label>
-                  <select
-                    className="w-full bg-slate-50 border border-slate-200 text-slate-600 rounded-xl px-4 py-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all duration-200"
-                    value={newJob.userId}
-                    onChange={(e) =>
-                      setNewJob({ ...newJob, userId: e.target.value })
-                    }
-                  >
-                    <option value="">Choose a user...</option>
-                    {users.map((u) => (
-                      <option key={u._id} value={u._id}>
-                        {u.fullName || u.mobile} ({u.role})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <Input
-                  label="Job Title*"
-                  value={newJob.title}
-                  onChange={(v) => setNewJob({ ...newJob, title: v })}
-                />
-                <Input
-                  label="Short Description*"
-                  value={newJob.description}
-                  onChange={(v) => setNewJob({ ...newJob, description: v })}
-                />
-              </div>
-
-              <div className="p-5 bg-indigo-50/30 rounded-2xl border border-indigo-100/50 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-indigo-600 font-bold text-[10px] uppercase tracking-wider">
-                    <MapPin size={14} /> Job Location
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleFetchLocation("create")}
-                    disabled={locLoading}
-                    className="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all duration-150"
-                  >
-                    {locLoading ? (
-                      <Loader2 size={11} className="animate-spin" />
-                    ) : (
-                      <Navigation size={11} />
-                    )}{" "}
-                    Fetch Location
-                  </button>
-                </div>
-                <Input
-                  label="Full Address*"
-                  value={newJob.address}
-                  onChange={(v) => setNewJob({ ...newJob, address: v })}
-                />
-                <div className="grid grid-cols-2 gap-4">
-                  <Input
-                    label="Latitude"
-                    value={newJob.latitude}
-                    onChange={(v) => setNewJob({ ...newJob, latitude: v })}
-                  />
-                  <Input
-                    label="Longitude"
-                    value={newJob.longitude}
-                    onChange={(v) => setNewJob({ ...newJob, longitude: v })}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  label="Company Name"
-                  value={newJob.companyName}
-                  onChange={(v) => setNewJob({ ...newJob, companyName: v })}
-                />
-                <Input
-                  label="Job Role"
-                  value={newJob.jobRole}
-                  onChange={(v) => setNewJob({ ...newJob, jobRole: v })}
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    label="Min Pay (₹)*"
-                    type="number"
-                    value={newJob.minPay}
-                    onChange={(v) => setNewJob({ ...newJob, minPay: v })}
-                  />
-                  <Input
-                    label="Max Pay (₹)*"
-                    type="number"
-                    value={newJob.maxPay}
-                    onChange={(v) => setNewJob({ ...newJob, maxPay: v })}
-                  />
-                </div>
-                <Input
-                  label="Vacancies"
-                  type="number"
-                  value={newJob.vacancies}
-                  onChange={(v) => setNewJob({ ...newJob, vacancies: v })}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  label="Whatsapp Number"
-                  value={newJob.whatsappNumber}
-                  onChange={(v) => setNewJob({ ...newJob, whatsappNumber: v })}
-                />
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">Experience</label>
-                  <select
-                    className="w-full bg-slate-50 border border-slate-200 text-slate-600 rounded-xl px-4 py-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all duration-200"
-                    value={newJob.experience}
-                    onChange={(e) =>
-                      setNewJob({ ...newJob, experience: e.target.value })
-                    }
-                  >
-                    <option value="Fresher">Fresher</option>
-                    <option value="1+ Year">1+ Year</option>
-                    <option value="2+ Year">2+ Year</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">Qualification</label>
-                  <select
-                    className="w-full bg-slate-50 border border-slate-200 text-slate-600 rounded-xl px-4 py-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all duration-200"
-                    value={newJob.qualification}
-                    onChange={(e) =>
-                      setNewJob({ ...newJob, qualification: e.target.value })
-                    }
-                  >
-                    <option value="10th Pass">10th Pass</option>
-                    <option value="12th Pass">12th Pass</option>
-                    <option value="BCA/MCA">BCA/MCA</option>
-                    <option value="Graduate">Graduate</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">
-                  Full Job Details/Description*
-                </label>
-                <textarea
-                  className="w-full bg-slate-50 border border-slate-200 text-slate-600 rounded-xl px-4 py-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all duration-200 min-h-[100px] resize-none"
-                  placeholder="Requirements..."
-                  value={newJob.details}
-                  onChange={(e) =>
-                    setNewJob({ ...newJob, details: e.target.value })
-                  }
-                />
-              </div>
-
-              <div className="space-y-3">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <ImageIcon size={14} /> Job Images (Max 5)
-                  </span>
-                </label>
-                <div className="grid grid-cols-5 gap-3">
-                  {createImages.map((file, idx) => (
-                    <div
-                      key={idx}
-                      className="relative aspect-square rounded-xl overflow-hidden border border-slate-100 bg-slate-50"
-                    >
-                      <img
-                        src={URL.createObjectURL(file)}
-                        className="w-full h-full object-cover"
-                        alt="Preview"
-                      />
-                      <button
-                        onClick={() =>
-                          setCreateImages(
-                            createImages.filter((_, i) => i !== idx),
-                          )
-                        }
-                        className="absolute top-1.5 right-1.5 bg-white/90 text-rose-500 rounded-full p-1 shadow-sm backdrop-blur-sm"
-                      >
-                        <X size={10} />
-                      </button>
-                    </div>
-                  ))}
-                  {createImages.length < 5 && (
-                    <button
-                      onClick={() => createFileInputRef.current.click()}
-                      className="aspect-square border border-dashed border-slate-200 hover:border-indigo-500 rounded-xl flex items-center justify-center text-slate-400 hover:text-indigo-500 transition-colors duration-200 bg-slate-50"
-                    >
-                      <PlusCircle size={20} />
-                    </button>
-                  )}
-                </div>
-                <input
-                  type="file"
-                  ref={createFileInputRef}
-                  className="hidden"
-                  multiple
-                  accept="image/*"
-                  onChange={(e) =>
-                    setCreateImages([
-                      ...createImages,
-                      ...Array.from(e.target.files),
-                    ])
-                  }
-                />
-              </div>
-
-              <div className="sticky bottom-0 bg-white/95 backdrop-blur pt-4 pb-2 flex justify-end gap-2.5 border-t border-slate-100">
-                <button
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="px-5 py-2.5 text-xs font-semibold text-slate-500 hover:text-slate-700"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreateNewJob}
-                  disabled={saveLoading}
-                  className="bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white px-7 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 flex items-center gap-2"
-                >
-                  {saveLoading ? (
-                    <Loader2 size={13} className="animate-spin" />
-                  ) : (
-                    "Post Job Now"
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {isEditModalOpen && selectedJob && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md transition-all duration-300 animate-fadeIn">
@@ -948,13 +810,13 @@ const PartTimeJobManagement = () => {
                   ))}
                   {(selectedJob.images?.length || 0) + editNewImages.length <
                     5 && (
-                    <button
-                      onClick={() => editFileInputRef.current.click()}
-                      className="aspect-square border border-dashed border-slate-200 hover:border-indigo-500 rounded-xl flex items-center justify-center text-slate-400 hover:text-indigo-500 transition-colors duration-200 bg-slate-50"
-                    >
-                      <PlusCircle size={20} />
-                    </button>
-                  )}
+                      <button
+                        onClick={() => editFileInputRef.current.click()}
+                        className="aspect-square border border-dashed border-slate-200 hover:border-indigo-500 rounded-xl flex items-center justify-center text-slate-400 hover:text-indigo-500 transition-colors duration-200 bg-slate-50"
+                      >
+                        <PlusCircle size={20} />
+                      </button>
+                    )}
                 </div>
                 <input
                   type="file"
@@ -1044,115 +906,141 @@ const PartTimeJobManagement = () => {
                 </div>
               </div>
 
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
                 <Input
-                  label="Company Name"
-                  value={selectedJob.companyName}
-                  onChange={(v) =>
-                    setSelectedJob({ ...selectedJob, companyName: v })
-                  }
-                />
-                <Input
-                  label="Job Role"
-                  value={selectedJob.jobRole}
-                  onChange={(v) =>
-                    setSelectedJob({ ...selectedJob, jobRole: v })
-                  }
-                />
-                <Input
-                  label="Min Pay (₹)"
+                  label="Min Salary (₹)"
+                  type="number"
                   value={selectedJob.salaryRange?.min}
                   onChange={(v) =>
                     setSelectedJob({
                       ...selectedJob,
-                      salaryRange: { ...selectedJob.salaryRange, min: v },
+                      salaryRange: {
+                        ...selectedJob.salaryRange,
+                        min: v,
+                      },
                     })
                   }
                 />
+
                 <Input
-                  label="Max Pay (₹)"
+                  label="Max Salary (₹)"
+                  type="number"
                   value={selectedJob.salaryRange?.max}
                   onChange={(v) =>
                     setSelectedJob({
                       ...selectedJob,
-                      salaryRange: { ...selectedJob.salaryRange, max: v },
+                      salaryRange: {
+                        ...selectedJob.salaryRange,
+                        max: v,
+                      },
                     })
                   }
                 />
-                <Input
-                  label="Vacancies"
-                  value={selectedJob.vacancies}
-                  onChange={(v) =>
-                    setSelectedJob({ ...selectedJob, vacancies: v })
-                  }
-                />
-                <Input
-                  label="Whatsapp Number"
-                  value={selectedJob.whatsappNumber}
-                  onChange={(v) =>
-                    setSelectedJob({ ...selectedJob, whatsappNumber: v })
-                  }
-                />
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">Experience</label>
+                {/* USER ID DROPDOWN */}
+                <div className="w-full">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">
+                    User ID
+                  </label>
+
                   <select
                     className="w-full bg-slate-50 border border-slate-200 text-slate-600 rounded-xl px-4 py-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all duration-200"
-                    value={selectedJob.experience}
+                    value={
+                      typeof selectedJob.userId === "object"
+                        ? selectedJob.userId?._id || selectedJob.userId?.id || ""
+                        : selectedJob.userId || ""
+                    }
                     onChange={(e) =>
                       setSelectedJob({
                         ...selectedJob,
-                        experience: e.target.value,
+                        userId: e.target.value,
                       })
                     }
                   >
-                    <option value="Fresher">Fresher</option>
-                    <option value="1+ Year">1+ Year</option>
-                    <option value="2+ Year">2+ Year</option>
-                    <option value="5+ Year">5+ Year</option>
+                    <option value="">Choose a user...</option>
+
+                    {users.map((u) => (
+                      <option key={u._id || u.id} value={u._id || u.id}>
+                        {u.fullName || u.name || u.mobile || u.phone || "Unknown User"}
+                      </option>
+                    ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">Qualification</label>
+                {/* CATEGORY */}
+                <div className="w-full">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">
+                    Category
+                  </label>
+
                   <select
                     className="w-full bg-slate-50 border border-slate-200 text-slate-600 rounded-xl px-4 py-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all duration-200"
-                    value={selectedJob.qualification}
+                    value={selectedJob.categoryId || ""}
+                    onChange={(e) => {
+                      const categoryId = e.target.value;
+
+                      const selectedCategory = categories.find(
+                        (category) =>
+                          (category._id || category.id) === categoryId
+                      );
+
+                      setSelectedJob({
+                        ...selectedJob,
+                        categoryId,
+                        subCategory: "",
+                      });
+                    }}
+                  >
+                    <option value="">Choose a category...</option>
+
+                    {categories.map((category) => (
+                      <option
+                        key={category._id || category.id}
+                        value={category._id || category.id}
+                      >
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* SUB CATEGORY */}
+                <div className="w-full">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">
+                    Sub Category
+                  </label>
+
+                  <select
+                    className="w-full bg-slate-50 border border-slate-200 text-slate-600 rounded-xl px-4 py-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all duration-200 disabled:opacity-60"
+                    value={selectedJob.subCategory || ""}
                     onChange={(e) =>
                       setSelectedJob({
                         ...selectedJob,
-                        qualification: e.target.value,
+                        subCategory: e.target.value,
                       })
                     }
+                    disabled={!selectedJob.categoryId}
                   >
-                    <option value="10th Pass">10th Pass</option>
-                    <option value="12th Pass">12th Pass</option>
-                    <option value="Graduate">Graduate</option>
-                    <option value="Post Graduate">Post Graduate</option>
+                    <option value="">
+                      {selectedJob.categoryId
+                        ? "Choose a sub category..."
+                        : "Select category first..."}
+                    </option>
+
+                    {(
+                      categories.find(
+                        (category) =>
+                          (category._id || category.id) === selectedJob.categoryId
+                      )?.subCategory || []
+                    ).map((subCategory, index) => (
+                      <option key={index} value={subCategory}>
+                        {subCategory}
+                      </option>
+                    ))}
                   </select>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-2.5 py-1">
-                <input
-                  type="checkbox"
-                  id="editFeat"
-                  checked={selectedJob.isFeatured}
-                  onChange={(e) =>
-                    setSelectedJob({
-                      ...selectedJob,
-                      isFeatured: e.target.checked,
-                    })
-                  }
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/10 h-4 w-4"
-                />
-                <label
-                  htmlFor="editFeat"
-                  className="text-xs font-bold text-slate-600 cursor-pointer select-none"
-                >
-                  Mark as Featured Job
-                </label>
               </div>
 
               <div>
@@ -1197,7 +1085,13 @@ const PartTimeJobManagement = () => {
         onClose={() => setIsViewModalOpen(false)}
         job={selectedJob}
       />
-
+      <PostPartTimeJob
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={fetchData}
+      />
+      
+    
       {isDeleteModalOpen && (
         <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md transition-all duration-300 animate-fadeIn">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 text-center transform transition-all duration-300 scale-100 animate-scaleUp border border-slate-100">

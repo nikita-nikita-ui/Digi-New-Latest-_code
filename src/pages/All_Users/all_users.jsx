@@ -273,8 +273,7 @@ const AllUsersContent = () => {
         }
       `}
       </style>
-      <div className="p-6 bg-white rounded-lg shadow-md w-full   m-4 min-h-screen ">
-        <h1 className="text-2xl font-bold mb-2">All Users</h1>
+<div className="p-6 bg-white rounded-lg shadow-md w-full min-h-screen">        <h1 className="text-2xl font-bold mb-2">All Users</h1>
         <p className="text-gray-500 mb-8">
           Manage all registered users on the platform.
         </p>
