@@ -26,7 +26,7 @@ import Setting from "./pages/SystemSetting/Systemsetting";
 // import Reports from "./pages/Report_Export/Report_export";
 import Business from "./pages/Business_Varifies/business-verify";
 
-import UserFullJobs from "./pages/Jobs/UserFullTime";
+
 import UserMarketPlace from "./pages/Marketplace/UserMarketPlace";
 import Coupon from "./pages/Credits-Management/CouponModule";
 import JobCategoryModule from "./pages/Categories/Job_category";
@@ -74,7 +74,6 @@ function App() {
           {/* <Route path="/report" element={<Reports />} /> */}
           <Route path="/business" element={<Business />} />
        
-          <Route path="/user-full" element={<UserFullJobs />} />
          
           <Route path="/user-marketplace" element={<UserMarketPlace />} />
           <Route path="/coupon" element={<Coupon />} />

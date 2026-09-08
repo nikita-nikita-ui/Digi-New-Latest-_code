@@ -1,7 +1,6 @@
 import React from "react";
 import { X, MapPin, Building2, IndianRupee, Briefcase, GraduationCap, Users, Star, Info, PhoneCall, Calendar } from "lucide-react";
-
-// Component name renamed to JobViewModal to match your PartTimeJobs.jsx import
+import ViewUserDetail from "./ViewUserDetail";
 const JobViewModal = ({ isOpen, onClose, job, loading }) => {
     if (!isOpen) return null;
 
@@ -128,6 +127,11 @@ const JobViewModal = ({ isOpen, onClose, job, loading }) => {
             `}</style>
         </div>
     );
+  <ViewUserDetail
+    isOpen={showUserDetails}
+    onClose={() => setShowUserDetails(false)}
+    users={job.unlockedByUsers || []}
+  />
 };
 
 const DetailItem = ({ icon, label, value }) => (

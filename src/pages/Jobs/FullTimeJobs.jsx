@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+
 import {
   Loader2,
   AlertCircle,
@@ -26,38 +27,69 @@ import { useNavigate } from "react-router-dom";
 import {
   getAllFullTimeJobs,
   createNewFullTimeJob,
-  getAllUsersAPI,
+ 
   deleteFullTimeJob,
   updateFullTimeJob,
   updateFullTimeJobStatus,
-  getFullTimeJobStats,
+ 
+  getLocalJobUsers ,
+  getJobCategoriesByType,
+
 } from "../../auth/adminLogin";
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-
 const normalizeJobData = (job) => {
   if (!job) return null;
-  const salary = job.salaryRange || {};
+
   return {
     _id: job._id || Math.random().toString(),
-    name: job.userId?.fullName || job.userId?.name || "N/A",
-    title: job.title || "Untitled Job",
-    companyName: job.companyName || "Individual",
-    location: job.location?.address || "Location Not Set",
-    jobRole: job.jobRole || "Not Specified",
-    budget: {
-      min: salary.min || 0,
-      max: salary.max || 0,
-    },
-    isFeatured: !!job.isFeatured,
-    status: job.status || "active",
-    isActive: job.status === "active",
-    description: job.description || "No description provided.",
-    details: job.details || "No details provided.",
-    vacancies: job.vacancies || "N/A",
+
+    // User
+    name: job.userId?.fullName || "N/A",
+    userId: job.userId?._id || "",
+    mobile: job.userId?.mobile || "N/A",
+    profilePhoto: job.userId?.profilePhoto || "",
+
+    // Job
+    jobCategory: job.jobCategory || "N/A",
+    category: job.category || "N/A",
+    subCategory: job.subCategory || "N/A",
+    title: job.title || "N/A",
+    details: job.details || "N/A",
+
+    // ADD THESE MISSING FIELDS ↓
+    companyName: job.companyName || "N/A",
+    jobRole: job.jobRole || "N/A",
     experience: job.experience || "N/A",
+    vacancies: job.vacancies || 0,
     qualification: job.qualification || "N/A",
     whatsappNumber: job.whatsappNumber || "N/A",
+    description: job.description || "N/A",
+    // ADD THESE MISSING FIELDS ↑
+
+    // Location
+    location: job.location?.address || "N/A",
+
+    // Work
+    workType: job.workType || "N/A",
+
+    // Budget
+    budget: {
+      min: job.budget?.min || 0,
+      max: job.budget?.max || 0,
+    },
+
+    // Other API fields
+    preferredCommunication: job.preferredCommunication || [],
+    images: job.images || [],
+    isFeatured: !!job.isFeatured,
+    status: job.status || "N/A",
+    expiresAt: job.expiresAt || null,
+    creditsSpent: job.creditsSpent || 0,
+    createdAt: job.createdAt || null,
+    updatedAt: job.updatedAt || null,
+    jobUnlockCount: job.jobUnlockCount || 0,
+    unlockedByUsers: job.unlockedByUsers || [],
   };
 };
 
@@ -100,6 +132,12 @@ const FullTimeJobManagement = () => {
   const [statusToUpdate, setStatusToUpdate] = useState("active");
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [stats, setStats] = useState(null);
+ const [isDeleteSuccessVisible, setIsDeleteSuccessVisible] = useState(false);
+const [categories, setCategories] = useState([]);
+const [selectedCategory, setSelectedCategory] = useState(null);
+const [selectedSubCategory, setSelectedSubCategory] = useState("");
+const [isCategoryOpen, setIsCategoryOpen] = useState(false);
+const [isSubCategoryOpen, setIsSubCategoryOpen] = useState(false);
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   const initialNewJobForm = {
     userId: "",
@@ -124,42 +162,60 @@ const FullTimeJobManagement = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const response = await getAllUsersAPI();
-        setUsersList(Array.isArray(response?.data) ? response.data : []);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchUsers();
-  }, []);
-
-  const fetchJobs = useCallback(async () => {
-    setLoading(true);
+ 
+useEffect(() => {
+  const fetchUsers = async () => {
     try {
-      const [jobsResponse, statsResponse] = await Promise.all([
-        getAllFullTimeJobs(currentPage),
-        getFullTimeJobStats(),
-      ]);
-
-      const jobsArray = Array.isArray(jobsResponse?.data)
-        ? jobsResponse.data
-        : [];
-      setAllJobs(jobsArray.map(normalizeJobData).filter(Boolean));
-      setTotalPages(jobsResponse?.pagination?.totalPages || 1);
-
-      if (statsResponse?.success && statsResponse?.data) {
-        setStats(statsResponse.data);
-      }
-    } catch (err) {
-      setError(err.message || "Something went wrong");
-    } finally {
-      setLoading(false);
+      const response = await getLocalJobUsers(1, 100);
+      setUsersList(response.data || []);
+    } catch (error) {
+      console.error("Failed to fetch users:", error);
     }
-  }, [currentPage]);
+  };
 
+ const fetchCategories = async () => {
+    try {
+      const response = await getJobCategoriesByType("FULL_TIME_JOB");
+      setCategories(response.data || []);
+    } catch (error) {
+      console.error("Failed to fetch categories:", error);
+    }
+  };
+
+  if (isAddModalOpen) {
+    fetchUsers();
+    fetchCategories();
+  }
+}, [isAddModalOpen]);
+
+const fetchJobs = useCallback(async () => {
+  setLoading(true);
+
+  try {
+    const jobsResponse = await getAllFullTimeJobs();
+
+    const jobsArray = Array.isArray(jobsResponse?.data)
+      ? jobsResponse.data
+      : [];
+
+    setAllJobs(
+      jobsArray.map(normalizeJobData).filter(Boolean)
+    );
+
+    setTotalPages(
+      jobsResponse?.pagination?.totalPages || 1
+    );
+
+    // Map analytics directly from API response
+    if (jobsResponse?.success && jobsResponse?.analytics) {
+      setStats(jobsResponse.analytics);
+    }
+  } catch (err) {
+    setError(err.message || "Something went wrong");
+  } finally {
+    setLoading(false);
+  }
+}, []);
   useEffect(() => {
     fetchJobs();
   }, [fetchJobs]);
@@ -221,54 +277,60 @@ const FullTimeJobManagement = () => {
     );
   };
 
-  const handleNewJobSubmit = async (e) => {
-    e.preventDefault();
-    if (!newJobForm.userId) {
-      alert("Please select a posting user");
-      return;
-    }
+ const handleNewJobSubmit = async (e) => {
+  e.preventDefault();
+  if (!newJobForm.userId) {
+    alert("Please select a posting user");
+    return;
+  }
 
-    setIsSubmitting(true);
-    const formData = new FormData();
+  setIsSubmitting(true);
+  const formData = new FormData();
 
-    if (newJobForm.images) {
-      formData.append("images", newJobForm.images);
-    }
+  formData.append("images", newJobForm.images); // FIX: imageFile -> newJobForm.images
+  formData.append("title", newJobForm.title);
+  formData.append("companyName", newJobForm.companyName);
+  formData.append("jobRole", newJobForm.jobRole);
+  formData.append("description", newJobForm.description);
+  formData.append("vacancies", newJobForm.vacancies);
+  formData.append("whatsappNumber", newJobForm.whatsappNumber);
+  formData.append("experience", newJobForm.experience);
+  formData.append("qualification", newJobForm.qualification);
 
-    formData.append("title", newJobForm.title);
-    formData.append("description", newJobForm.description);
-    formData.append("companyName", newJobForm.companyName);
-    formData.append("details", newJobForm.details);
-    formData.append(
-      "salaryRange",
-      JSON.stringify({
-        min: Number(newJobForm.salaryMin),
-        max: Number(newJobForm.salaryMax),
-      }),
-    );
-    formData.append("jobRole", newJobForm.jobRole);
-    formData.append("vacancies", newJobForm.vacancies);
-    formData.append("whatsappNumber", newJobForm.whatsappNumber);
-    formData.append("experience", newJobForm.experience);
-    formData.append("qualification", newJobForm.qualification);
-    formData.append("location[coordinates][0]", newJobForm.lng);
-    formData.append("location[coordinates][1]", newJobForm.lat);
-    formData.append("location[address]", newJobForm.address);
-    formData.append("userId", newJobForm.userId);
+  // FIX: salaryRange nahi tha state me, salaryMin/Max se banao
+  formData.append(
+    "salaryRange",
+    JSON.stringify({
+      min: Number(newJobForm.salaryMin),
+      max: Number(newJobForm.salaryMax),
+    })
+  );
 
-    try {
-      await createNewFullTimeJob(formData);
-      await fetchJobs();
-      setIsAddModalOpen(false);
-      setNewJobForm(initialNewJobForm);
-      setImagePreview(null);
-      setIsSuccessModalOpen(true);
-    } catch (err) {
-      alert(err.message || "Failed to post job");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  // FIX: location object nahi hai, direct lng/lat/address use karo
+  formData.append("location[coordinates][0]", newJobForm.lng);
+  formData.append("location[coordinates][1]", newJobForm.lat);
+  formData.append("location[address]", newJobForm.address);
+
+  formData.append("details", newJobForm.details);
+  formData.append("userId", newJobForm.userId);
+  formData.append("categoryId", selectedCategory?._id || "");
+  formData.append("subCategory", selectedSubCategory || "");
+
+  try {
+    await createNewFullTimeJob(formData);
+    await fetchJobs();
+    setIsAddModalOpen(false);
+    setNewJobForm(initialNewJobForm);
+    setSelectedCategory(null);
+    setSelectedSubCategory("");
+    setImagePreview(null);
+    setIsSuccessModalOpen(true);
+  } catch (err) {
+    alert(err.message || "Failed to post job");
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   const openViewModal = (job) => {
     setSelectedJob(job);
@@ -301,22 +363,26 @@ const FullTimeJobManagement = () => {
     }
   };
 
-  const handleDeleteConfirm = async () => {
-    if (!selectedJob) return;
-    setIsDeleting(true);
-    try {
-      if (typeof deleteFullTimeJob === "function") {
-        await deleteFullTimeJob(selectedJob._id);
-      }
-      await fetchJobs();
-      setIsDeleteModalOpen(false);
-      setSelectedJob(null);
-    } catch (error) {
-      alert(error.message || "Failed to delete job");
-    } finally {
-      setIsDeleting(false);
+ const handleDeleteConfirm = async () => {
+  if (!selectedJob) return;
+  setIsDeleting(true);
+  try {
+    if (typeof deleteFullTimeJob === "function") {
+      await deleteFullTimeJob(selectedJob._id);
     }
-  };
+    await fetchJobs();
+    setIsDeleteModalOpen(false);
+    setSelectedJob(null);
+
+    // NEW: show toast
+    setIsDeleteSuccessVisible(true);
+    setTimeout(() => setIsDeleteSuccessVisible(false), 4000);
+  } catch (error) {
+    alert(error.message || "Failed to delete job");
+  } finally {
+    setIsDeleting(false);
+  }
+};
 
   const openEditModal = (job) => {
     setEditJobForm({
@@ -392,22 +458,7 @@ const FullTimeJobManagement = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          <select
-            value={jobType}
-            onChange={(e) => {
-              const value = e.target.value;
-              setJobType(value);
-              if (value === "FULL") {
-                navigate("/FullTimeJobs");
-              } else {
-                navigate("/user-full");
-              }
-            }}
-            className="w-36 bg-white border border-slate-200 text-slate-600 rounded-xl px-3 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all duration-200 cursor-pointer"
-          >
-            <option value="FULL">Admin Jobs</option>
-            <option value="PART">User Jobs</option>
-          </select>
+   
           <button
             onClick={() => {
               setNewJobForm(initialNewJobForm);
@@ -420,63 +471,109 @@ const FullTimeJobManagement = () => {
         </div>
       </div>
 
-      {stats && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
-            <div>
-              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                Total Jobs
-              </p>
-              <h3 className="text-2xl font-bold text-slate-800 mt-1">
-                {stats.totalJobs}
-              </h3>
-            </div>
-            <div className="bg-indigo-50 text-indigo-600 p-3 rounded-xl">
-              <Briefcase size={20} />
-            </div>
-          </div>
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
-            <div>
-              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                Admin Jobs
-              </p>
-              <h3 className="text-2xl font-bold text-slate-800 mt-1">
-                {stats.adminJobsCount}
-              </h3>
-            </div>
-            <div className="bg-emerald-50 text-emerald-600 p-3 rounded-xl">
-              <Users size={20} />
-            </div>
-          </div>
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
-            <div>
-              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                User Jobs
-              </p>
-              <h3 className="text-2xl font-bold text-slate-800 mt-1">
-                {stats.userJobsCount}
-              </h3>
-            </div>
-            <div className="bg-amber-50 text-amber-600 p-3 rounded-xl">
-              <GraduationCap size={20} />
-            </div>
-          </div>
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
-            <div>
-              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                Expired Jobs
-              </p>
-              <h3 className="text-2xl font-bold text-slate-800 mt-1">
-                {stats.expiredJobsCount}
-              </h3>
-            </div>
-            <div className="bg-rose-50 text-rose-600 p-3 rounded-xl">
-              <AlertCircle size={20} />
-            </div>
-          </div>
-        </div>
-      )}
+     {stats && (
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
 
+    {/* Total Credits Spent */}
+    <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+      <div>
+        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+          Total Credits Spent
+        </p>
+        <h3 className="text-2xl font-bold text-slate-800 mt-1">
+          {stats.credits?.totalCreditsSpent || 0}
+        </h3>
+      </div>
+
+      <div className="bg-purple-50 text-purple-600 p-3 rounded-xl">
+        <Briefcase size={20} />
+      </div>
+    </div>
+
+    {/* Total Full-Time Jobs */}
+    <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+      <div>
+        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+          Total Full-Time Jobs
+        </p>
+        <h3 className="text-2xl font-bold text-slate-800 mt-1">
+          {stats.totalFullTimeJobs || 0}
+        </h3>
+      </div>
+
+      <div className="bg-indigo-50 text-indigo-600 p-3 rounded-xl">
+        <Briefcase size={20} />
+      </div>
+    </div>
+
+    {/* Active Full-Time Jobs */}
+    <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+      <div>
+        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+          Active Full-Time Jobs
+        </p>
+        <h3 className="text-2xl font-bold text-slate-800 mt-1">
+          {stats.activeFullTimeJobs || 0}
+        </h3>
+      </div>
+
+      <div className="bg-emerald-50 text-emerald-600 p-3 rounded-xl">
+        <Users size={20} />
+      </div>
+    </div>
+
+    {/* Expired Full-Time Jobs */}
+    <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+      <div>
+        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+          Expired Full-Time Jobs
+        </p>
+        <h3 className="text-2xl font-bold text-slate-800 mt-1">
+          {stats.expiredFullTimeJobs || 0}
+        </h3>
+      </div>
+
+      <div className="bg-rose-50 text-rose-600 p-3 rounded-xl">
+        <AlertCircle size={20} />
+      </div>
+    </div>
+
+    {/* Featured Full-Time Jobs */}
+    <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+      <div>
+        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+          Featured Full-Time Jobs
+        </p>
+        <h3 className="text-2xl font-bold text-slate-800 mt-1">
+          {stats.featuredFullTimeJobs || 0}
+        </h3>
+      </div>
+
+      <div className="bg-amber-50 text-amber-600 p-3 rounded-xl">
+        <GraduationCap size={20} />
+      </div>
+    </div>
+
+    {/* Total Unlocks */}
+    <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+      <div>
+        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+          Total Unlocks
+        </p>
+        <h3 className="text-2xl font-bold text-slate-800 mt-1">
+          {stats.totalUnlocksAcrossAllJobs || 0}
+        </h3>
+      </div>
+
+      <div className="bg-cyan-50 text-cyan-600 p-3 rounded-xl">
+        <Users size={20} />
+      </div>
+    </div>
+
+   
+
+  </div>
+)}
       {loading ? (
         <div className="flex flex-col items-center justify-center p-20">
           <Loader2 className="animate-spin text-indigo-600 mb-4" size={24} />
@@ -538,12 +635,12 @@ const FullTimeJobManagement = () => {
                           </div>
                           <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
                             <Briefcase size={12} className="text-slate-300" />{" "}
-                            {job.companyName}
+                      {job.workType}
                           </div>
                         </td>
                         <td className="p-4">
                           <span className="bg-indigo-50 text-indigo-500 px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-wider uppercase">
-                            {job.jobRole}
+                       {job.subCategory}
                           </span>
                         </td>
                         <td className="p-4 text-xs font-semibold text-slate-600">
@@ -826,6 +923,143 @@ const FullTimeJobManagement = () => {
                 />
               </div>
 
+{/* Category & Subcategory */}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+  {/* Category */}
+  <div className="relative">
+    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1">
+      Category
+    </label>
+
+    <button
+      type="button"
+      onClick={() => {
+        setIsCategoryOpen(!isCategoryOpen);
+        setIsSubCategoryOpen(false);
+      }}
+      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3
+                 text-xs font-medium text-left flex items-center justify-between
+                 focus:outline-none focus:border-indigo-500 transition-all"
+    >
+      <span className={selectedCategory ? "text-slate-700" : "text-slate-400"}>
+        {selectedCategory?.name || "Select Category"}
+      </span>
+
+      <ChevronDown
+        size={15}
+        className={`text-slate-400 transition-transform ${
+          isCategoryOpen ? "rotate-180" : ""
+        }`}
+      />
+    </button>
+
+    {isCategoryOpen && (
+      <div className="absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+        <div className="max-h-52 overflow-y-auto p-1.5">
+          {categories.length > 0 ? (
+            categories.map((category) => (
+              <button
+                type="button"
+                key={category._id}
+                onClick={() => {
+                  setSelectedCategory(category);
+                  setSelectedSubCategory("");
+                  setIsCategoryOpen(false);
+                }}
+                className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-medium
+                  transition-all hover:bg-indigo-50 hover:text-indigo-600
+                  ${
+                    selectedCategory?._id === category._id
+                      ? "bg-indigo-50 text-indigo-600"
+                      : "text-slate-600"
+                  }`}
+              >
+                {category.name}
+              </button>
+            ))
+          ) : (
+            <p className="px-3 py-3 text-xs text-slate-400">
+              No categories found
+            </p>
+          )}
+        </div>
+      </div>
+    )}
+  </div>
+
+  {/* Subcategory */}
+  <div className="relative">
+    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1">
+      Subcategory
+    </label>
+
+    <button
+      type="button"
+      disabled={!selectedCategory}
+      onClick={() => {
+        setIsSubCategoryOpen(!isSubCategoryOpen);
+        setIsCategoryOpen(false);
+      }}
+      className={`w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3
+                 text-xs font-medium text-left flex items-center justify-between
+                 focus:outline-none focus:border-indigo-500 transition-all
+                 ${
+                   !selectedCategory
+                     ? "opacity-50 cursor-not-allowed"
+                     : "text-slate-700"
+                 }`}
+    >
+      <span
+        className={
+          selectedSubCategory ? "text-slate-700" : "text-slate-400"
+        }
+      >
+        {selectedSubCategory || "Select Subcategory"}
+      </span>
+
+      <ChevronDown
+        size={15}
+        className={`text-slate-400 transition-transform ${
+          isSubCategoryOpen ? "rotate-180" : ""
+        }`}
+      />
+    </button>
+
+    {isSubCategoryOpen && selectedCategory && (
+      <div className="absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+        <div className="max-h-52 overflow-y-auto p-1.5">
+          {selectedCategory.subCategory?.length > 0 ? (
+            selectedCategory.subCategory.map((subCategory, index) => (
+              <button
+                type="button"
+                key={index}
+                onClick={() => {
+                  setSelectedSubCategory(subCategory);
+                  setIsSubCategoryOpen(false);
+                }}
+                className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-medium
+                  transition-all hover:bg-indigo-50 hover:text-indigo-600
+                  ${
+                    selectedSubCategory === subCategory
+                      ? "bg-indigo-50 text-indigo-600"
+                      : "text-slate-600"
+                  }`}
+              >
+                {subCategory}
+              </button>
+            ))
+          ) : (
+            <p className="px-3 py-3 text-xs text-slate-400">
+              No subcategories available
+            </p>
+          )}
+        </div>
+      </div>
+    )}
+  </div>
+
+</div>
               <div className="space-y-4">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5 ml-1">
@@ -1026,14 +1260,7 @@ const FullTimeJobManagement = () => {
               </div>
 
               <div className="space-y-4 pt-4 border-t border-slate-100">
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Brief Summary
-                  </p>
-                  <p className="text-xs text-slate-600 bg-slate-50/50 p-4 rounded-xl border border-slate-100 leading-relaxed">
-                    {selectedJob.description}
-                  </p>
-                </div>
+               
                 <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                     Full Listing details
@@ -1041,6 +1268,32 @@ const FullTimeJobManagement = () => {
                   <p className="text-xs text-slate-600 bg-slate-50/50 p-4 rounded-xl border border-slate-100 leading-relaxed whitespace-pre-line">
                     {selectedJob.details}
                   </p>
+                </div>
+                 <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Unlocked By Users ({selectedJob.unlockedByUsers?.length || 0})
+                  </p>
+                  {selectedJob.unlockedByUsers?.length > 0 ? (
+                    <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-100 space-y-2">
+                      {selectedJob.unlockedByUsers.map((user, i) => (
+                        <div
+                          key={user._id || i}
+                          className="flex items-center justify-between text-xs text-slate-600 border-b border-slate-100 last:border-0 pb-2 last:pb-0"
+                        >
+                          <span className="font-semibold text-slate-700">
+                            {user.fullName || user.name || "Unnamed User"}
+                          </span>
+                          <span className="text-slate-400">
+                            {user.mobile || "N/A"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 bg-slate-50/50 p-4 rounded-xl border border-slate-100">
+                      No users have unlocked this job yet.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -1155,28 +1408,46 @@ const FullTimeJobManagement = () => {
         </div>
       )}
 
-      {isSuccessModalOpen && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md transition-all duration-300 animate-fadeIn">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xs p-8 text-center transform transition-all duration-300 scale-100 animate-scaleUp border border-slate-100">
-            <div className="w-14 h-14 bg-emerald-50 text-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-bounce">
-              <CheckCircle size={28} />
-            </div>
-            <h3 className="text-base font-bold text-slate-800 mb-1">
-              Listing Live!
-            </h3>
-            <p className="text-slate-400 text-xs mb-6">
-              Your job listing has been successfully published
-            </p>
-            <button
-              onClick={() => setIsSuccessModalOpen(false)}
-              className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold text-xs hover:bg-slate-800 transition-colors shadow-sm"
-            >
-              Great, thanks!
-            </button>
-          </div>
-        </div>
-      )}
+   {isSuccessModalOpen && (
+  <div className="fixed top-6 right-6 z-[1001] animate-in fade-in slide-in-from-top-5 duration-300">
+    <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 flex items-center gap-3 px-5 py-4 min-w-[300px]">
+      <div className="bg-emerald-50 text-emerald-500 p-2 rounded-full shrink-0">
+        <CheckCircle size={20} />
+      </div>
+      <div className="flex-1">
+        <p className="text-sm font-bold text-slate-800">Listing Live!</p>
+        <p className="text-[11px] text-slate-400">Job listing published successfully</p>
+      </div>
+      <button
+        onClick={() => setIsSuccessModalOpen(false)}
+        className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
+      >
+        <X size={14} className="text-slate-400" />
+      </button>
+    </div>
+  </div>
+)}
 
+
+{isDeleteSuccessVisible && (
+  <div className="fixed top-6 right-6 z-[1001] animate-in fade-in slide-in-from-top-5 duration-300">
+    <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 flex items-center gap-3 px-5 py-4 min-w-[300px]">
+      <div className="bg-rose-50 text-rose-500 p-2 rounded-full shrink-0">
+        <Trash2 size={20} />
+      </div>
+      <div className="flex-1">
+        <p className="text-sm font-bold text-slate-800">Job Deleted</p>
+        <p className="text-[11px] text-slate-400">Listing removed successfully</p>
+      </div>
+      <button
+        onClick={() => setIsDeleteSuccessVisible(false)}
+        className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
+      >
+        <X size={14} className="text-slate-400" />
+      </button>
+    </div>
+  </div>
+)}
       {isEditModalOpen && editJobForm && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md transition-all duration-300 animate-fadeIn">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-100 animate-scaleUp border border-slate-100">

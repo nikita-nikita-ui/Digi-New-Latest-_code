@@ -208,17 +208,18 @@ export const createNewJob = async (jobData) => {
 };
 
 // --- Get All Full-Time Jobs ---
-export const getAllFullTimeJobs = async (page = 1) => {
+
+  export const getAllFullTimeJobs = async () =>
+     {
   try {
-    const token = localStorage.getItem("token");
-    const response = await apiClient.get(`/admin/full-time/all?page=${page}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const response = await apiClient.get(
+
+      "/admin/full-time/non-admin-jobs"
+    );
+
     return response.data;
   } catch (error) {
-    throw error.response ? error.response.data : new Error("Network Error");
+    throw error;
   }
 };
 
@@ -1123,7 +1124,7 @@ export const getAllLocalJobs = async (page = 1, pageSize = 10) => {
   }
 };
 
-// Get Local Job Users
+// Get  Job Users
 export const getLocalJobUsers = async (page = 1, limit = 10) => {
   try {
     const response = await apiClient.get(
