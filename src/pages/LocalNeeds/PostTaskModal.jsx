@@ -2,17 +2,17 @@ import React, { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import {
   X, Phone, MessageSquare, DollarSign, Sparkles,
-  Image, Navigation, User, Tag,
+  Image, Navigation, User, Tag, ChevronDown, Check,
 } from "lucide-react";
-import { getJobCategoriesByType, getLocalJobUsers  } from "../../auth/adminLogin";
+import { getJobCategoriesByType, getLocalJobUsers } from "../../auth/adminLogin";
 const PostTaskModal = ({ onSave, onClose, initialData }) => {
   const [previewImage, setPreviewImage] = useState(null);
-const [users, setUsers] = useState([]);
-const [categories, setCategories] = useState([]);
-const [subCategories, setSubCategories] = useState([]);
-const [loadingUsers, setLoadingUsers] = useState(false);
-const [loadingCategories, setLoadingCategories] = useState(false);
-
+  const [users, setUsers] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [subCategories, setSubCategories] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     details: "",
@@ -57,69 +57,69 @@ const [loadingCategories, setLoadingCategories] = useState(false);
     }
   }, [initialData]);
 
- useEffect(() => {
-  fetchUsers();
-  fetchCategories();
-}, []);
+  useEffect(() => {
+    fetchUsers();
+    fetchCategories();
+  }, []);
 
-const fetchUsers = async () => {
-  try {
-    setLoadingUsers(true);
+  const fetchUsers = async () => {
+    try {
+      setLoadingUsers(true);
 
-    const response = await getLocalJobUsers(1, 100);
+      const response = await getLocalJobUsers(1, 100);
 
-    console.log("Users Response:", response);
+      console.log("Users Response:", response);
 
-    if (response?.success) {
-      setUsers(response.data || []);
+      if (response?.success) {
+        setUsers(response.data || []);
+      }
+    } catch (error) {
+      console.error("Users API Error:", error);
+      toast.error("Failed to load users");
+    } finally {
+      setLoadingUsers(false);
     }
-  } catch (error) {
-    console.error("Users API Error:", error);
-    toast.error("Failed to load users");
-  } finally {
-    setLoadingUsers(false);
-  }
-};
+  };
 
-const fetchCategories = async () => {
-  try {
-    setLoadingCategories(true);
+  const fetchCategories = async () => {
+    try {
+      setLoadingCategories(true);
 
-   const response = await getJobCategoriesByType("LOCAL_JOB");
+      const response = await getJobCategoriesByType("LOCAL_JOB");
 
-    console.log("Categories Response:", response);
+      console.log("Categories Response:", response);
 
-    if (response?.success) {
-      setCategories(response.data || []);
+      if (response?.success) {
+        setCategories(response.data || []);
+      }
+    } catch (error) {
+      console.error("Categories API Error:", error);
+      toast.error("Failed to load categories");
+    } finally {
+      setLoadingCategories(false);
     }
-  } catch (error) {
-    console.error("Categories API Error:", error);
-    toast.error("Failed to load categories");
-  } finally {
-    setLoadingCategories(false);
-  }
-};
+  };
 
 
-const handleChange = (e) => {
-  const { name, value, type, checked, files } = e.target;
+  const handleChange = (e) => {
+    const { name, value, type, checked, files } = e.target;
 
-  // Category select hone par subcategories automatically fetch
-  if (name === "categoryId") {
-    const selectedCategory = categories.find(
-      (category) => category._id === value
-    );
+    // Category select hone par subcategories automatically fetch
+    if (name === "categoryId") {
+      const selectedCategory = categories.find(
+        (category) => category._id === value
+      );
 
-    setFormData((prev) => ({
-      ...prev,
-      categoryId: value,
-      subCategory: "",
-    }));
+      setFormData((prev) => ({
+        ...prev,
+        categoryId: value,
+        subCategory: "",
+      }));
 
-    setSubCategories(selectedCategory?.subCategory || []);
+      setSubCategories(selectedCategory?.subCategory || []);
 
-    return;
-  }
+      return;
+    }
 
     if (name === "images") {
       const file = files[0];
@@ -315,91 +315,139 @@ const handleChange = (e) => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-       <div className="space-y-1">
-  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-    User ID
-  </label>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                User ID
+              </label>
 
-  <div className="relative">
-    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none z-10">
-      <User size={16} />
-    </span>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none z-10">
+                  <User size={16} />
+                </span>
 
-    <select
-      name="userId"
-      value={formData.userId}
-      onChange={handleChange}
-      className="w-full pl-10 pr-4 py-3.5 border border-slate-200 bg-slate-50 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-medium text-slate-800 transition-all text-sm appearance-none"
-    >
-      <option value="">
-        {loadingUsers ? "Loading users..." : "Select User"}
-      </option>
+             <button
+  type="button"
+  onClick={() => setIsUserDropdownOpen((prev) => !prev)}
+  disabled={loadingUsers}
+  className="w-full pl-10 pr-4 py-3.5 border border-slate-200 bg-slate-50 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-medium text-slate-800 transition-all text-sm flex items-center justify-between"
+>
+  <span className="truncate">
+    {loadingUsers
+      ? "Loading users..."
+      : formData.userId
+      ? users.find((user) => user._id === formData.userId)?.fullName ||
+        "Select User"
+      : "Select User"}
+  </span>
 
-      {users.map((user) => (
-        <option key={user._id} value={user._id}>
-          {user.fullName}
-        </option>
-      ))}
-    </select>
+  <ChevronDown
+    size={18}
+    className={`text-slate-400 transition-transform ${
+      isUserDropdownOpen ? "rotate-180" : ""
+    }`}
+  />
+</button>
+
+{isUserDropdownOpen && !loadingUsers && (
+  <div className="absolute z-50 mt-2 w-full bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden">
+    <div className="max-h-60 overflow-y-auto py-1">
+      {users.length > 0 ? (
+        users.map((user) => (
+          <button
+            type="button"
+            key={user._id}
+            onClick={() => {
+              handleChange({
+                target: {
+                  name: "userId",
+                  value: user._id,
+                },
+              });
+
+              setIsUserDropdownOpen(false);
+            }}
+            className={`w-full px-4 py-3 text-left text-sm font-medium flex items-center justify-between hover:bg-indigo-50 transition-colors ${
+              formData.userId === user._id
+                ? "bg-indigo-50 text-indigo-600"
+                : "text-slate-700"
+            }`}
+          >
+            <span className="truncate">
+              {user.fullName}
+            </span>
+
+            {formData.userId === user._id && (
+              <Check size={16} className="text-indigo-500 shrink-0" />
+            )}
+          </button>
+        ))
+      ) : (
+        <div className="px-4 py-4 text-center text-sm text-slate-400">
+          No users found
+        </div>
+      )}
+    </div>
   </div>
-</div>
+)}
+              </div>
+            </div>
 
-         <div className="space-y-1">
-  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-    Category
-  </label>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Category
+              </label>
 
-  <div className="relative">
-    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none z-10">
-      <Tag size={16} />
-    </span>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none z-10">
+                  <Tag size={16} />
+                </span>
 
-    <select
-      name="categoryId"
-      value={formData.categoryId}
-      onChange={handleChange}
-      className="w-full pl-10 pr-4 py-3.5 border border-slate-200 bg-slate-50 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-medium text-slate-800 transition-all text-sm appearance-none"
-    >
-      <option value="">
-        {loadingCategories ? "Loading categories..." : "Select Category"}
-      </option>
+                <select
+                  name="categoryId"
+                  value={formData.categoryId}
+                  onChange={handleChange}
+                  className="w-full pl-10 pr-4 py-3.5 border border-slate-200 bg-slate-50 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-medium text-slate-800 transition-all text-sm appearance-none"
+                >
+                  <option value="">
+                    {loadingCategories ? "Loading categories..." : "Select Category"}
+                  </option>
 
-      {categories.map((category) => (
-        <option key={category._id} value={category._id}>
-          {category.name}
-        </option>
-      ))}
-    </select>
-  </div>
-</div>
+                  {categories.map((category) => (
+                    <option key={category._id} value={category._id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
-         <div className="space-y-1">
-  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-    Sub Category
-  </label>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Sub Category
+              </label>
 
-  <select
-    name="subCategory"
-    value={formData.subCategory}
-    onChange={handleChange}
-    disabled={!formData.categoryId}
-    className="w-full border border-slate-200 bg-slate-50 p-3.5 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-medium text-slate-800 transition-all text-sm disabled:opacity-50"
-  >
-    <option value="">
-      {!formData.categoryId
-        ? "Select Category First"
-        : subCategories.length === 0
-        ? "No Sub Category Available"
-        : "Select Sub Category"}
-    </option>
+              <select
+                name="subCategory"
+                value={formData.subCategory}
+                onChange={handleChange}
+                disabled={!formData.categoryId}
+                className="w-full border border-slate-200 bg-slate-50 p-3.5 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-medium text-slate-800 transition-all text-sm disabled:opacity-50"
+              >
+                <option value="">
+                  {!formData.categoryId
+                    ? "Select Category First"
+                    : subCategories.length === 0
+                      ? "No Sub Category Available"
+                      : "Select Sub Category"}
+                </option>
 
-    {subCategories.map((subCategory, index) => (
-      <option key={index} value={subCategory}>
-        {subCategory}
-      </option>
-    ))}
-  </select>
-</div>
+                {subCategories.map((subCategory, index) => (
+                  <option key={index} value={subCategory}>
+                    {subCategory}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="space-y-2 bg-slate-50 p-5 rounded-3xl border border-slate-150">
@@ -422,7 +470,7 @@ const handleChange = (e) => {
               className="w-full border border-slate-200 bg-white p-3.5 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-medium text-slate-800 transition-all"
             />
 
-            <div className="flex flex-wrap items-center gap-4 pt-1.5 text-xs font-bold text-slate-400">
+            <div className="flex flex-wrap items-center gap-4 pt-1.5 text-xs font-bold text-slate-900">
               <span className="flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
                 Longitude: {formData.location.coordinates[0] || "None"}

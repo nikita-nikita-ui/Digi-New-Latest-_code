@@ -6,7 +6,7 @@ import {
   User,
   MapPin,
   Navigation,
-  Image as ImageIcon,
+  Image as ImageIcon, ChevronDown, Check
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -19,7 +19,7 @@ import {
 const initialJobState = {
   userId: "",
   title: "",
- 
+
   companyName: "",
   jobRole: "",
   vacancies: 5,
@@ -52,7 +52,7 @@ const PostPartTimeJob = ({ isOpen, onClose, onSuccess }) => {
 
   const createFileInputRef = useRef(null);
 
-
+const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   useEffect(() => {
     if (!isOpen) return;
 
@@ -239,7 +239,7 @@ const PostPartTimeJob = ({ isOpen, onClose, onSuccess }) => {
       return;
     }
 
-   
+
 
     if (!newJob.categoryId) {
       toast.error("Please select a category!");
@@ -280,7 +280,7 @@ const PostPartTimeJob = ({ isOpen, onClose, onSuccess }) => {
         newJob.title.trim()
       );
 
-      
+
 
       formData.append(
         "details",
@@ -292,7 +292,7 @@ const PostPartTimeJob = ({ isOpen, onClose, onSuccess }) => {
         newJob.userId
       );
 
-    
+
 
       formData.append(
         "categoryId",
@@ -325,7 +325,7 @@ const PostPartTimeJob = ({ isOpen, onClose, onSuccess }) => {
         newJob.address || ""
       );
 
-     
+
 
       formData.append(
         "location[coordinates][0]",
@@ -463,44 +463,111 @@ const PostPartTimeJob = ({ isOpen, onClose, onSuccess }) => {
                 Select Job Poster (User)*
               </label>
 
-              <select
-                className="w-full bg-slate-50 border border-slate-200 text-slate-600 rounded-xl px-4 py-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all duration-200"
-                value={newJob.userId}
-                onChange={(e) =>
-                  setNewJob((prev) => ({
-                    ...prev,
-                    userId: e.target.value,
-                  }))
-                }
-                disabled={userLoading}
-              >
-                <option value="">
-                  {userLoading
-                    ? "Loading users..."
-                    : "Choose a user..."}
-                </option>
+              <div className="relative">
+                {/* Dropdown Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsUserDropdownOpen((prev) => !prev)}
+                  disabled={userLoading}
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-600 rounded-xl px-4 py-3 text-xs font-medium flex items-center justify-between gap-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all duration-200"
+                >
+                  <span className="truncate">
+                    {userLoading
+                      ? "Loading users..."
+                      : newJob.userId
+                        ? users.find(
+                          (u) => (u._id || u.id) === newJob.userId
+                        )?.fullName ||
+                        users.find(
+                          (u) => (u._id || u.id) === newJob.userId
+                        )?.name ||
+                        users.find(
+                          (u) => (u._id || u.id) === newJob.userId
+                        )?.mobile ||
+                        users.find(
+                          (u) => (u._id || u.id) === newJob.userId
+                        )?.phone ||
+                        "Unknown User"
+                        : "Choose a user..."}
+                  </span>
 
-                {users.map((u) => {
-                  const userId =
-                    u._id || u.id;
+                  <ChevronDown
+                    size={16}
+                    className={`shrink-0 text-slate-400 transition-transform duration-200 ${isUserDropdownOpen ? "rotate-180" : ""
+                      }`}
+                  />
+                </button>
 
-                  return (
-                    <option
-                      key={userId}
-                      value={userId}
-                    >
-                      {u.fullName ||
-                        u.name ||
-                        u.mobile ||
-                        u.phone ||
-                        "Unknown User"}{" "}
-                      {u.role
-                        ? `(${u.role})`
-                        : ""}
-                    </option>
-                  );
-                })}
-              </select>
+                {/* Dropdown Menu */}
+                {isUserDropdownOpen && !userLoading && (
+                  <div className="absolute z-50 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+                    <div className="max-h-60 overflow-y-auto py-1">
+                      {users.length > 0 ? (
+                        users.map((u) => {
+                          const userId = u._id || u.id;
+
+                          const userName =
+                            u.fullName ||
+                            u.name ||
+                            u.mobile ||
+                            u.phone ||
+                            "Unknown User";
+
+                          return (
+                            <button
+                              type="button"
+                              key={userId}
+                              onClick={() => {
+                                setNewJob((prev) => ({
+                                  ...prev,
+                                  userId,
+                                }));
+                                setIsUserDropdownOpen(false);
+                              }}
+                              className={`w-full px-4 py-3 text-left text-xs flex items-center justify-between gap-3 hover:bg-indigo-50 transition-colors ${newJob.userId === userId
+                                  ? "bg-indigo-50 text-indigo-600"
+                                  : "text-slate-600"
+                                }`}
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
+                                  <User
+                                    size={14}
+                                    className="text-indigo-500"
+                                  />
+                                </div>
+
+                                <div className="min-w-0">
+                                  <p className="font-semibold truncate">
+                                    {userName}
+                                  </p>
+
+                                  {u.role && (
+                                    <p className="text-[10px] text-slate-400 mt-0.5">
+                                      {u.role}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {newJob.userId === userId && (
+                                <Check
+                                  size={15}
+                                  className="text-indigo-500 shrink-0"
+                                />
+                              )}
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className="px-4 py-6 text-center text-xs text-slate-400">
+                          No users found
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             <Input
@@ -514,7 +581,7 @@ const PostPartTimeJob = ({ isOpen, onClose, onSuccess }) => {
               }
             />
 
-          
+
           </div>
 
           {/* LOCATION */}
@@ -586,9 +653,9 @@ const PostPartTimeJob = ({ isOpen, onClose, onSuccess }) => {
           {/* COMPANY / ROLE / SALARY / VACANCIES */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-           
 
-           
+
+
 
             {/* SALARY */}
             <div className="grid grid-cols-2 gap-2">
@@ -617,10 +684,10 @@ const PostPartTimeJob = ({ isOpen, onClose, onSuccess }) => {
               />
             </div>
 
-           
+
           </div>
 
-        
+
 
           {/* CATEGORY + SUB CATEGORY */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -324,12 +324,19 @@ export const updateUserStatusAPI = async (id, status) => {
   }
 };
 
-export const getAllBloodRequestsAPI = async () => {
-  try {
-    const response = await apiClient.get("/admin/blood-requests");
+export const getAllBloodRequestsAPI = async () => 
+  {
+  try 
+  {
+    const response = await apiClient.get(
+      "/admin/blood-requests"
+
+    );
     return response.data;
-  } catch (error) {
-    throw error.response ? error.response.data : new Error("Network Error");
+
+  } catch (error) 
+  {
+    throw error;
   }
 };
 
@@ -815,66 +822,43 @@ export const searchUsersByNameAPI = async (name) => {
   }
 };
 
-export const createBloodRequestAPI = async (requestData) => {
+export const createBloodRequestAPI = async (requestData) => 
+  {
   try {
     const adminId =
       localStorage.getItem("id") || localStorage.getItem("userId");
 
-    // Payload mein adminId add kar rahe hain agar localStorage mein available hai
-    const finalData = {
+    const finalData =
+     {
       ...requestData,
       adminId: requestData.adminId || adminId,
     };
 
     const response = await apiClient.post("/admin/blood-requests", finalData);
+
     return response.data;
-  } catch (error) {
+  } 
+  catch (error) {
+
     throw error.response ? error.response.data : new Error("Network Error");
   }
 };
-export const deleteFullTimeJob = async (jobId) => {
-  const token = localStorage.getItem("token");
+// export const deleteFullTimeJob = async (jobId) => {
+//   const token = localStorage.getItem("token");
 
-  const response = await apiClient.delete(`/admin/full-time/delete/${jobId}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+//   const response = await apiClient.delete(`/admin/full-time/delete/${jobId}`, {
+//     headers: {
+//       Authorization: `Bearer ${token}`,
+//     },
+//   });
 
-  return response.data;
-};
+//   return response.data;
+// };
 
 // --- UPDATE FULL-TIME JOB CONTROLLER ---
-export const updateFullTimeJob = async (id, formData) => {
-  try {
-    const token = localStorage.getItem("token");
-    const adminId =
-      localStorage.getItem("id") || localStorage.getItem("userId");
 
-    // Agar updatedBy track karna chahte hain toh add karein
-    if (formData instanceof FormData) {
-      if (adminId && !formData.has("updatedBy")) {
-        formData.append("updatedBy", adminId);
-      }
-    }
 
-    const response = await apiClient.put(
-      `/admin/full-time/update/${id}`,
-      formData,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "multipart/form-data",
-        },
-      },
-    );
 
-    return response.data;
-  } catch (error) {
-    console.error("Full-Time Job Update Error:", error);
-    throw error.response ? error.response.data : new Error("Network Error");
-  }
-};
 // --- GET USERS FOR DROPDOWN ---
 export const getUsersForDropdownAPI = async () => {
   try {

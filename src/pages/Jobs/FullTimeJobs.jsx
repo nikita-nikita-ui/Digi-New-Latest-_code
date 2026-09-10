@@ -20,16 +20,14 @@ import {
   Navigation,
   FileText,
   Eye,
-  Trash2,
-  Edit,
+
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   getAllFullTimeJobs,
   createNewFullTimeJob,
  
-  deleteFullTimeJob,
-  updateFullTimeJob,
+ 
   updateFullTimeJobStatus,
  
   getLocalJobUsers ,
@@ -119,12 +117,9 @@ const FullTimeJobManagement = () => {
   const [imagePreview, setImagePreview] = useState(null);
   const [selectedJob, setSelectedJob] = useState(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+ 
   const fileInputRef = useRef(null);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editJobForm, setEditJobForm] = useState(null);
-  const [isEditSuccessVisible, setIsEditSuccessVisible] = useState(false);
+
   const [jobType, setJobType] = useState("FULL");
   const navigate = useNavigate();
 
@@ -132,7 +127,7 @@ const FullTimeJobManagement = () => {
   const [statusToUpdate, setStatusToUpdate] = useState("active");
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [stats, setStats] = useState(null);
- const [isDeleteSuccessVisible, setIsDeleteSuccessVisible] = useState(false);
+
 const [categories, setCategories] = useState([]);
 const [selectedCategory, setSelectedCategory] = useState(null);
 const [selectedSubCategory, setSelectedSubCategory] = useState("");
@@ -233,50 +228,56 @@ const fetchJobs = useCallback(async () => {
     }
   };
 
-  const handleAutoFetchLocation = () => {
-    if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser");
-      return;
-    }
-    setIsFetchingLocation(true);
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
+const handleAutoFetchLocation = () => {
+  if (!navigator.geolocation) {
+    alert("Geolocation is not supported by your browser.");
+    return;
+  }
+
+  setIsFetchingLocation(true);
+
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      const { latitude, longitude } = position.coords;
+
+      try {
+        // Coordinates set
         setNewJobForm((prev) => ({
           ...prev,
-          lat: latitude.toFixed(6),
-          lng: longitude.toFixed(6),
+          lat: latitude.toString(),
+          lng: longitude.toString(),
         }));
 
-        try {
-          const response = await fetch(
-            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_MAPS_API_KEY}`,
-          );
-          const data = await response.json();
+        // Coordinates → Address
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+        );
 
-          if (data.status === "OK" && data.results[0]) {
-            setNewJobForm((prev) => ({
-              ...prev,
-              address: data.results[0].formatted_address,
-            }));
-          } else {
-            alert("Coordinates fetched! Please enter address manually.");
-          }
-        } catch (err) {
-          // Added 'err' here
-          alert("Failed to get address. Please type it manually.");
-        } finally {
-          setIsFetchingLocation(false);
-        }
-      },
-      () => {
+        const data = await response.json();
+
+        const address =
+          data.display_name || "";
+
+        // Address also set
+        setNewJobForm((prev) => ({
+          ...prev,
+          lat: latitude.toString(),
+          lng: longitude.toString(),
+          address,
+        }));
+      } catch (error) {
+        console.error("Failed to fetch location:", error);
+      } finally {
         setIsFetchingLocation(false);
-        alert("Location access denied. Please enable GPS.");
-      },
-      { enableHighAccuracy: true, timeout: 5000 },
-    );
-  };
-
+      }
+    },
+    (error) => {
+      console.error("Location error:", error);
+      setIsFetchingLocation(false);
+      alert("Unable to fetch your location.");
+    },
+  );
+};
  const handleNewJobSubmit = async (e) => {
   e.preventDefault();
   if (!newJobForm.userId) {
@@ -337,10 +338,7 @@ const fetchJobs = useCallback(async () => {
     setIsViewModalOpen(true);
   };
 
-  const openDeleteModal = (job) => {
-    setSelectedJob(job);
-    setIsDeleteModalOpen(true);
-  };
+ 
 
   const openStatusModal = (job) => {
     setSelectedJob(job);
@@ -363,74 +361,6 @@ const fetchJobs = useCallback(async () => {
     }
   };
 
- const handleDeleteConfirm = async () => {
-  if (!selectedJob) return;
-  setIsDeleting(true);
-  try {
-    if (typeof deleteFullTimeJob === "function") {
-      await deleteFullTimeJob(selectedJob._id);
-    }
-    await fetchJobs();
-    setIsDeleteModalOpen(false);
-    setSelectedJob(null);
-
-    // NEW: show toast
-    setIsDeleteSuccessVisible(true);
-    setTimeout(() => setIsDeleteSuccessVisible(false), 4000);
-  } catch (error) {
-    alert(error.message || "Failed to delete job");
-  } finally {
-    setIsDeleting(false);
-  }
-};
-
-  const openEditModal = (job) => {
-    setEditJobForm({
-      id: job._id,
-      title: job.title,
-      details: job.details,
-      status: job.status,
-      workType: job.jobRole || "",
-      salaryMin: job.budget?.min || 0,
-      salaryMax: job.budget?.max || 0,
-      preferredCommunication: "Text",
-      images: null,
-    });
-    setIsEditModalOpen(true);
-  };
-
-  const handleEditSubmit = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    try {
-      const formData = new FormData();
-      formData.append("title", editJobForm.title);
-      formData.append("details", editJobForm.details);
-      formData.append("status", editJobForm.status);
-      formData.append("jobRole", editJobForm.workType);
-      formData.append(
-        "salaryRange",
-        JSON.stringify({
-          min: Number(editJobForm.salaryMin),
-          max: Number(editJobForm.salaryMax),
-        }),
-      );
-      if (editJobForm.images) formData.append("images", editJobForm.images);
-
-      await updateFullTimeJob(editJobForm.id, formData);
-      await fetchJobs();
-      setIsEditModalOpen(false);
-      setIsEditSuccessVisible(true);
-
-      setTimeout(() => {
-        setIsEditSuccessVisible(false);
-      }, 5000);
-    } catch (err) {
-      alert(err.message || "Update failed");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const getStatusBadgeStyle = (status) => {
     switch (status) {
@@ -672,18 +602,8 @@ const fetchJobs = useCallback(async () => {
                               icon={<Eye size={12} />}
                               onClick={() => openViewModal(job)}
                             />
-                            <ActionBtn
-                              text="Edit"
-                              variant="slate"
-                              icon={<Edit size={12} />}
-                              onClick={() => openEditModal(job)}
-                            />
-                            <ActionBtn
-                              text="Delete"
-                              variant="rose"
-                              icon={<Trash2 size={12} />}
-                              onClick={() => openDeleteModal(job)}
-                            />
+                          
+                            
                           </div>
                         </td>
                       </tr>
@@ -868,7 +788,7 @@ const fetchJobs = useCallback(async () => {
                     )}
                     {isFetchingLocation
                       ? "Fetching..."
-                      : "Auto-fetch Coordinates"}
+                      : "Auto-fetch Location"}
                   </button>
                 </div>
 
@@ -1370,43 +1290,7 @@ const fetchJobs = useCallback(async () => {
         </div>
       )}
 
-      {isDeleteModalOpen && selectedJob && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md transition-all duration-300 animate-fadeIn">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 text-center transform transition-all duration-300 scale-100 animate-scaleUp border border-slate-100">
-            <div className="w-14 h-14 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <AlertCircle size={24} />
-            </div>
-            <h3 className="text-base font-bold text-slate-800 mb-1">
-              Delete Job Posting?
-            </h3>
-            <p className="text-slate-400 text-xs mb-6">
-              This action is permanent and cannot be undone for{" "}
-              <strong>{selectedJob.title}</strong>
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setIsDeleteModalOpen(false)}
-                disabled={isDeleting}
-                className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-500 hover:text-slate-700 rounded-xl font-semibold text-xs transition-colors duration-150 bg-white"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteConfirm}
-                disabled={isDeleting}
-                className="flex-1 px-4 py-2.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-semibold text-xs shadow-sm transition-colors duration-150 flex items-center justify-center gap-1.5"
-              >
-                {isDeleting ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : (
-                  <Trash2 size={12} />
-                )}
-                {isDeleting ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+    
 
    {isSuccessModalOpen && (
   <div className="fixed top-6 right-6 z-[1001] animate-in fade-in slide-in-from-top-5 duration-300">
@@ -1429,195 +1313,7 @@ const fetchJobs = useCallback(async () => {
 )}
 
 
-{isDeleteSuccessVisible && (
-  <div className="fixed top-6 right-6 z-[1001] animate-in fade-in slide-in-from-top-5 duration-300">
-    <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 flex items-center gap-3 px-5 py-4 min-w-[300px]">
-      <div className="bg-rose-50 text-rose-500 p-2 rounded-full shrink-0">
-        <Trash2 size={20} />
-      </div>
-      <div className="flex-1">
-        <p className="text-sm font-bold text-slate-800">Job Deleted</p>
-        <p className="text-[11px] text-slate-400">Listing removed successfully</p>
-      </div>
-      <button
-        onClick={() => setIsDeleteSuccessVisible(false)}
-        className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
-      >
-        <X size={14} className="text-slate-400" />
-      </button>
-    </div>
-  </div>
-)}
-      {isEditModalOpen && editJobForm && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md transition-all duration-300 animate-fadeIn">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-100 animate-scaleUp border border-slate-100">
-            <div className="sticky top-0 bg-white/95 backdrop-blur z-10 flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <Edit className="text-indigo-600" size={18} /> Edit Job Listing
-              </h2>
-              <button
-                onClick={() => setIsEditModalOpen(false)}
-                className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-full transition-all duration-200"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
-              <InputField
-                label="Job Title"
-                value={editJobForm.title}
-                onChange={(e) =>
-                  setEditJobForm({ ...editJobForm, title: e.target.value })
-                }
-                required
-              />
-
-              <div className="grid grid-cols-2 gap-4">
-                <InputField
-                  label="Work Type / Role"
-                  value={editJobForm.workType}
-                  onChange={(e) =>
-                    setEditJobForm({ ...editJobForm, workType: e.target.value })
-                  }
-                />
-                <div className="relative">
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5 ml-1">
-                    Status
-                  </label>
-
-                  <div
-                    onClick={() =>
-                      setIsStatusDropdownOpen(!isStatusDropdownOpen)
-                    }
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium text-slate-600 flex justify-between items-center cursor-pointer hover:border-indigo-400 transition-all duration-200"
-                  >
-                    <span className="capitalize">{editJobForm.status}</span>
-                    <ChevronDown
-                      size={14}
-                      className={`transition-transform duration-200 ${
-                        isStatusDropdownOpen ? "rotate-180" : ""
-                      }`}
-                    />
-                  </div>
-
-                  {isStatusDropdownOpen && (
-                    <div className="absolute top-full left-0 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50">
-                      {["active", "closed", "expired"].map((status) => (
-                        <div
-                          key={status}
-                          onClick={() => {
-                            setEditJobForm({ ...editJobForm, status });
-                            setIsStatusDropdownOpen(false);
-                          }}
-                          className="px-4 py-3 text-xs font-medium text-slate-600 hover:bg-indigo-50 cursor-pointer capitalize"
-                        >
-                          {status}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <InputField
-                  label="Min Salary (₹)"
-                  type="number"
-                  value={editJobForm.salaryMin}
-                  onChange={(e) =>
-                    setEditJobForm({
-                      ...editJobForm,
-                      salaryMin: e.target.value,
-                    })
-                  }
-                />
-                <InputField
-                  label="Max Salary (₹)"
-                  type="number"
-                  value={editJobForm.salaryMax}
-                  onChange={(e) =>
-                    setEditJobForm({
-                      ...editJobForm,
-                      salaryMax: e.target.value,
-                    })
-                  }
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5 ml-1">
-                  Full Job Details/Description
-                </label>
-                <textarea
-                  className="w-full bg-slate-50 border border-slate-200 text-slate-600 rounded-xl px-4 py-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all duration-200 h-24 resize-none"
-                  value={editJobForm.details}
-                  onChange={(e) =>
-                    setEditJobForm({ ...editJobForm, details: e.target.value })
-                  }
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">
-                  Update Banner Image
-                </label>
-                <input
-                  type="file"
-                  className="text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 cursor-pointer"
-                  onChange={(e) =>
-                    setEditJobForm({
-                      ...editJobForm,
-                      images: e.target.files[0],
-                    })
-                  }
-                />
-              </div>
-
-              <div className="sticky bottom-0 bg-white/95 backdrop-blur pt-4 pb-2 flex justify-end gap-2.5 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="px-5 py-2.5 text-xs font-semibold text-slate-500 hover:text-slate-700"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white px-7 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 shadow-sm"
-                >
-                  {isSubmitting ? "Saving..." : "Save Changes"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {isEditSuccessVisible && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[1001] animate-in fade-in slide-in-from-bottom-5 duration-500">
-          <div className="bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 border border-slate-800 min-w-[320px]">
-            <div className="bg-emerald-500 p-2 rounded-full shadow-lg shadow-emerald-500/20">
-              <CheckCircle size={20} className="text-white" />
-            </div>
-            <div className="flex-1">
-              <p className="font-bold text-xs tracking-wide">
-                SUCCESSFULLY UPDATED
-              </p>
-              <p className="text-[10px] text-slate-400 uppercase font-semibold">
-                Changes are now live
-              </p>
-            </div>
-            <button
-              onClick={() => setIsEditSuccessVisible(false)}
-              className="p-1 hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <X size={16} className="text-slate-400" />
-            </button>
-          </div>
-        </div>
-      )}
+   
     </div>
   );
 };
