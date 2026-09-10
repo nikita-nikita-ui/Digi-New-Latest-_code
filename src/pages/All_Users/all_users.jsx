@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Table, Tag, Space, Button, message, Avatar, Modal, Input, Descriptions } from "antd";
+import { Table, Tag, Space, Button, message, Avatar, Modal, Input, Descriptions, Select } from "antd";
 import {
   UserOutlined,
   EditOutlined,
@@ -35,6 +35,9 @@ const AllUsersContent = () => {
   const [viewingUser, setViewingUser] = useState(null);
   const [searchText, setSearchText] = useState("");
   const [roleFilter, setRoleFilter] = useState(null);
+  const [categoryFilter, setCategoryFilter] = useState(null);
+  const [genderFilter, setGenderFilter] = useState(null);
+  const [locationFilter, setLocationFilter] = useState(null);
 
   const handleSearch = async (value) => {
     setSearchText(value);
@@ -149,6 +152,43 @@ const AllUsersContent = () => {
     return "N/A";
   };
 
+  const getUserCity = (user) => {
+    if (!user) return null;
+    if (user.city) return user.city;
+    if (typeof user.location === "string") return user.location;
+    return null;
+  };
+
+  // Unique dropdown options derived from current data
+  const categoryOptions = Array.from(
+    new Set(data.map((u) => u.category).filter(Boolean))
+  );
+  const genderOptions = Array.from(
+    new Set(data.map((u) => u.gender).filter(Boolean))
+  );
+  const locationOptions = Array.from(
+    new Set(data.map((u) => getUserCity(u)).filter(Boolean))
+  );
+
+  const getFilteredData = () => {
+    let filtered = data;
+
+    if (roleFilter) {
+      filtered = filtered.filter((user) => user.role === roleFilter);
+    }
+    if (categoryFilter) {
+      filtered = filtered.filter((user) => user.category === categoryFilter);
+    }
+    if (genderFilter) {
+      filtered = filtered.filter((user) => user.gender === genderFilter);
+    }
+    if (locationFilter) {
+      filtered = filtered.filter((user) => getUserCity(user) === locationFilter);
+    }
+
+    return filtered;
+  };
+
   const columns = [
     {
       title: "S.NO",
@@ -180,6 +220,16 @@ const AllUsersContent = () => {
       title: "EMAIL/MOBILE",
       key: "contact",
       render: (_, record) => record.email || record.mobile || "N/A",
+    },
+    {
+      title: "CATEGORY",
+      key: "category",
+      render: (_, record) => record.category || "N/A",
+    },
+    {
+      title: "LOCATION",
+      key: "locationColumn",
+      render: (_, record) => renderLocation(record),
     },
     {
       title: "USER TYPE",
@@ -278,7 +328,7 @@ const AllUsersContent = () => {
           Manage all registered users on the platform.
         </p>
 
-        <Space style={{ marginBottom: 30,marginTop: 10 }}>
+        <Space wrap style={{ marginBottom: 30, marginTop: 10 }}>
           <Button
             type={roleFilter === null ? "primary" : "default"}
             onClick={() => setRoleFilter(null)}
@@ -297,7 +347,7 @@ const AllUsersContent = () => {
               background: roleFilter === "SERVICE_PROVIDER" ? "#4a69bd" : "",
             }}
           >
-            Service Providers
+            Service Provider
           </Button>
           <Button
             type={roleFilter === "GENERAL_USER" ? "primary" : "default"}
@@ -307,8 +357,41 @@ const AllUsersContent = () => {
               background: roleFilter === "GENERAL_USER" ? "#4a69bd" : "",
             }}
           >
-            Customers
+            General User
           </Button>
+          <Button
+            type={roleFilter === "BUSINESS_SHOPS" ? "primary" : "default"}
+            onClick={() => setRoleFilter("BUSINESS_SHOPS")}
+            style={{
+              borderRadius: 20,
+              background: roleFilter === "BUSINESS_SHOPS" ? "#4a69bd" : "",
+            }}
+          >
+            Business/Shop
+          </Button>
+
+        
+
+          <Select
+            placeholder="Gender"
+            allowClear
+            style={{ width: 140 }}
+            value={genderFilter}
+            onChange={(value) => setGenderFilter(value || null)}
+            options={genderOptions.map((g) => ({
+              label: g.charAt(0).toUpperCase() + g.slice(1),
+              value: g,
+            }))}
+          />
+
+          <Select
+            placeholder="Location"
+            allowClear
+            style={{ width: 160 }}
+            value={locationFilter}
+            onChange={(value) => setLocationFilter(value || null)}
+            options={locationOptions.map((l) => ({ label: l, value: l }))}
+          />
         </Space>
 
         <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-200">
@@ -329,12 +412,10 @@ const AllUsersContent = () => {
 
         <Table
           columns={columns}
-          dataSource={
-            roleFilter ? data.filter((user) => user.role === roleFilter) : data
-          }
+          dataSource={getFilteredData()}
           loading={loading}
           rowKey="_id"
-          scroll={{ x: 1200 }}
+          scroll={{ x: 1400 }}
           pagination={{
             current: pagination.current,
             pageSize: pagination.pageSize,

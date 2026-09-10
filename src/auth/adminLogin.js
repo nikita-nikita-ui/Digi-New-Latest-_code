@@ -300,16 +300,31 @@ export const createNewFullTimeJob = async (formData) => {
   }
 };
 
-// GET /api/admin/users
-export const getAllUsersAPI = async () => {
+// // GET /api/admin/users
+// export const getAllUsersAPI = async () => {
+//   try {
+//     const response = await apiClient.get("/admin/users");
+//     return response.data;
+//   } catch (error) {
+//     throw error.response ? error.response.data : new Error("Network Error");
+//   }
+// };
+
+export const getAllUsersAPI = async (page = 1, limit = 10, type = "all") => {
   try {
-    const response = await apiClient.get("/admin/users");
+    const response = await apiClient.get("/admin/users", {
+      params: {
+        type,
+        page,
+        limit,
+      },
+    });
+
     return response.data;
   } catch (error) {
-    throw error.response ? error.response.data : new Error("Network Error");
+    throw error;
   }
 };
-
 export const updateUserStatusAPI = async (id, status) => {
   try {
     const adminId = localStorage.getItem("id");
