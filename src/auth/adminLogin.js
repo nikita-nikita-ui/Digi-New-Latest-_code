@@ -299,19 +299,10 @@ export const createNewFullTimeJob = async (formData) => {
       : new Error("Network Error or Server Unreachable");
   }
 };
-
-// // GET /api/admin/users
-// export const getAllUsersAPI = async () => {
-//   try {
-//     const response = await apiClient.get("/admin/users");
-//     return response.data;
-//   } catch (error) {
-//     throw error.response ? error.response.data : new Error("Network Error");
-//   }
-// };
-
-export const getAllUsersAPI = async (page = 1, limit = 10, type = "all") => {
-  try {
+export const getAllUsersAPI = async (page = 1, limit = 10, type = "all") => 
+  {
+  try
+   {
     const response = await apiClient.get("/admin/users", {
       params: {
         type,
@@ -321,7 +312,8 @@ export const getAllUsersAPI = async (page = 1, limit = 10, type = "all") => {
     });
 
     return response.data;
-  } catch (error) {
+  } catch (error)
+   {
     throw error;
   }
 };
@@ -1218,50 +1210,6 @@ export const updateMarketplaceItemAPI = async (id, itemData) => {
   }
 };
 
-// --- GET ALL USER CREATED ITEMS ---
-export const getAllUserItems = async (page = 1) => {
-  try {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
-      throw new Error("No token found. Please login as admin.");
-    }
-    const response = await apiClient.get(
-      `/admin/items/getItems-users?page=${page}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    );
-    return response.data;
-  } catch (error) {
-    console.error("GET USER ITEMS ERROR:", error);
-    throw error.response ? error.response.data : new Error("Network Error");
-  }
-};
-
-// --- DELETE USER ITEM ---
-export const deleteUserItem = async (id) => {
-  try {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
-      throw new Error("No token found. Please login as admin.");
-    }
-
-    const response = await apiClient.delete(`/admin/items/delete/${id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    return response.data;
-  } catch (error) {
-    console.error("DELETE ITEM ERROR:", error);
-    throw error.response ? error.response.data : new Error("Network Error");
-  }
-};
 
 
 export const createMarketplaceItemAPI = async (itemData) => {

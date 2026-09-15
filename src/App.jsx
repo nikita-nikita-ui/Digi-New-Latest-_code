@@ -27,7 +27,6 @@ import Setting from "./pages/SystemSetting/Systemsetting";
 import Business from "./pages/Business_Varifies/business-verify";
 
 
-import UserMarketPlace from "./pages/Marketplace/UserMarketPlace";
 import Coupon from "./pages/Credits-Management/CouponModule";
 import JobCategoryModule from "./pages/Categories/Job_category";
 import SubCategoryShop from "./pages/Categories/Shop_subcategory";
@@ -75,7 +74,7 @@ function App() {
           <Route path="/business" element={<Business />} />
        
          
-          <Route path="/user-marketplace" element={<UserMarketPlace />} />
+        
           <Route path="/coupon" element={<Coupon />} />
           <Route path="/banner-management" element={<BannerManagement />} />
           <Route path="/subcategoryshop" element={<SubCategoryShop />} />

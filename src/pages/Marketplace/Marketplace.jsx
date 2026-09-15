@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from "react";
+import { getLocalJobUsers } from "../../auth/adminLogin";
+import UserDetailModal from "./UserDetailModal";
+import { getAllItemCategories, createItem } from "../../auth/marketplace";
+import AddMarketplaceItemModal from "./AddMarketplaceItemModal";
+import { toast } from "react-toastify";
 import {
   Edit,
+  Package,
+  Clock,
+  CreditCard,
   Trash2,
   Star,
   X,
@@ -22,7 +30,11 @@ import {
   PhoneCall,
   MessageSquare,
 } from "lucide-react";
+
 import { useNavigate, useLocation } from "react-router-dom";
+
+import { getItemsUsers } from "../../auth/marketplace";
+
 import {
   updateMarketplaceItemAPI,
   createMarketplaceItemAPI,
@@ -31,33 +43,59 @@ import {
 const MarketplaceManager = () => {
   const navigate = useNavigate();
   const location = useLocation();
+
   const [items, setItems] = useState([]);
+
   const [stats, setStats] = useState({
-    total: 0,
-    active: 0,
-    featured: 0,
-    sum: 0,
+    totalItems: 0,
+    activeItems: 0,
+    totalCreditsSpent: 0,
+    isFeatured: 0,
   });
+  const [categories, setCategories] = useState([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState({});
+
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
   const [currentItem, setCurrentItem] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newItem, setNewItem] = useState({});
-  const [toast, setToast] = useState({
+
+  // NOTE: renamed from `toast` -> `toastState` because `toast` from
+  // react-toastify was being shadowed by this local state variable.
+  const [toastState, setToastState] = useState({
     visible: false,
     message: "",
     type: "success",
   });
+
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const [users, setUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const itemsPerPage = 10;
 
+  // User Detail Modal
+  const [isUserDetailModalOpen, setIsUserDetailModalOpen] = useState(false);
+
+  const [selectedUser, setSelectedUser] = useState(null);
+
+  // =========================================================
+  // FETCH CURRENT LOCATION
+  // =========================================================
+
   const getCurrentLocation = () => {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      showToast("Geolocation is not supported by your browser", "error");
+      return;
+    }
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
@@ -66,68 +104,77 @@ const MarketplaceManager = () => {
 
         try {
           const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
           );
+
           const data = await res.json();
 
           setCurrentItem((prev) => ({
             ...prev,
             location: {
               address: data.display_name || "",
-              coordinates: [Number(lat.toFixed(6)), Number(lng.toFixed(6))],
+              coordinates: [
+                Number(lat.toFixed(6)),
+                Number(lng.toFixed(6)),
+              ],
             },
           }));
         } catch (err) {
           console.log(err);
+          showToast("Unable to fetch location", "error");
         }
       },
-      (err) => console.log(err),
+      (err) => {
+        console.log(err);
+        showToast("Location permission denied", "error");
+      }
     );
   };
 
+  // =========================================================
+  // LOCAL BANNER TOAST (top-right box in this component)
+  // =========================================================
+
   const showToast = (message, type = "success") => {
-    setToast({ visible: true, message, type });
+    setToastState({ visible: true, message, type });
+
     setTimeout(() => {
-      setToast({ visible: false, message: "", type: "success" });
+      setToastState({ visible: false, message: "", type: "success" });
     }, 5000);
   };
 
+  // =========================================================
+  // FETCH MARKETPLACE DATA
+  // =========================================================
+
   const fetchMarketplaceData = async (page = currentPage) => {
     setLoading(true);
+
     try {
-      const token = localStorage.getItem("token");
-
-      const response = await fetch(
-        `https://digiapp-node-1.onrender.com/api/admin/items/Items?page=${page}&limit=${itemsPerPage}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      const result = await response.json();
+      const result = await getItemsUsers(page, itemsPerPage);
 
       if (result.success) {
-        setItems(result.data);
+        setItems(result.data || []);
 
         setStats({
-          total: result.totalItems || 0,
-          active: result.activeItems || 0,
-          featured: result.featuredItems || 0,
-          sum: result.totalPriceSum || 0,
+          totalItems: result?.totalItems ?? 0,
+          activeItems: result?.activeItems ?? 0,
+          totalCreditsSpent: result?.totalCreditsSpent ?? 0,
+          isFeatured: result?.isFeatured ?? 0,
         });
 
-        setTotalItems(result.totalItems || 0);
+        setTotalItems(result?.totalItems ?? 0);
+
         setTotalPages(
-          result.totalPages ||
-            Math.ceil((result.totalItems || 0) / itemsPerPage),
+          result?.pagination?.totalPages ??
+            Math.ceil((result?.totalItems ?? 0) / itemsPerPage)
         );
       } else {
         showToast("Failed to load data", "error");
       }
-    } catch {
-      showToast("Error fetching job list", "error");
+    } catch (error) {
+      console.error(error);
+      showToast("Error fetching item list", "error");
     } finally {
       setLoading(false);
     }
@@ -137,10 +184,86 @@ const MarketplaceManager = () => {
     fetchMarketplaceData(currentPage);
   }, [currentPage]);
 
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setLoadingCategories(true);
+
+        const response = await getAllItemCategories(1, 100);
+
+        if (response?.success) {
+          setCategories(response?.data || []);
+        }
+      } catch (error) {
+        console.error("Failed to fetch categories:", error);
+      } finally {
+        setLoadingCategories(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        setLoadingUsers(true);
+
+        const response = await getLocalJobUsers(1, 100);
+
+        if (response?.success) {
+          setUsers(response?.data || []);
+        }
+      } catch (error) {
+        console.error("Failed to fetch users:", error);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
   const openEditModal = (item) => {
     setCurrentItem({ ...item });
     setIsEditModalOpen(true);
   };
+
+  // =========================================================
+  // OPEN VIEW MODAL
+  // =========================================================
+
+  const openViewModal = (item) => {
+    setCurrentItem(item);
+    setIsViewModalOpen(true);
+  };
+
+  // =========================================================
+  // OPEN USER DETAIL MODAL
+  // =========================================================
+
+  const openUserDetailModal = () => {
+    if (!currentItem?.user) {
+      showToast("User details not available", "error");
+      return;
+    }
+
+    setSelectedUser(currentItem.user);
+    setIsUserDetailModalOpen(true);
+  };
+
+  // =========================================================
+  // CLOSE USER DETAIL MODAL
+  // =========================================================
+
+  const closeUserDetailModal = () => {
+    setIsUserDetailModalOpen(false);
+    setSelectedUser(null);
+  };
+
+  // =========================================================
+  // UPDATE ITEM
+  // =========================================================
 
   const handleUpdateConfirm = async () => {
     if (!currentItem) return;
@@ -155,12 +278,14 @@ const MarketplaceManager = () => {
       showToast("Please fill all required fields", "error");
       return;
     }
+
     if (currentItem.preferredCommunication?.call) {
       if (!currentItem.phone || currentItem.phone.length !== 10) {
         showToast("Phone number must be exactly 10 digits", "error");
         return;
       }
     }
+
     setActionLoading(true);
 
     try {
@@ -171,40 +296,57 @@ const MarketplaceManager = () => {
         isFeatured: currentItem.isFeatured,
         preferredCommunication: currentItem.preferredCommunication,
         images: currentItem.images,
+
         location: {
           address: currentItem.location?.address,
           coordinates: currentItem.location?.coordinates,
         },
       });
+
       if (result.success) {
-        setItems(
-          items.map((item) =>
-            item._id === currentItem._id ? result.data : item,
-          ),
+        setItems((prevItems) =>
+          prevItems.map((item) =>
+            item._id === currentItem._id ? result.data : item
+          )
         );
+
         setIsEditModalOpen(false);
         setCurrentItem(null);
+
         showToast("Updated successfully", "success");
       } else {
-        alert("Update failed: " + result.message);
+        showToast(result.message || "Update failed", "error");
       }
     } catch (err) {
-      alert("Error updating item: " + err.message);
+      console.error(err);
+
+      showToast(err.message || "Error updating item", "error");
     } finally {
       setActionLoading(false);
     }
   };
+
+  // =========================================================
+  // OPEN DELETE MODAL
+  // =========================================================
 
   const openDeleteModal = (item) => {
     setCurrentItem(item);
     setIsDeleteModalOpen(true);
   };
 
+  // =========================================================
+  // DELETE ITEM
+  // =========================================================
+
   const handleDeleteConfirm = async () => {
     if (!currentItem) return;
+
     setActionLoading(true);
+
     try {
       const token = localStorage.getItem("token");
+
       const response = await fetch(
         `https://digiapp-node-1.onrender.com/api/admin/items/delete/${currentItem._id}`,
         {
@@ -212,86 +354,163 @@ const MarketplaceManager = () => {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        },
+        }
       );
 
       const result = await response.json();
+
       if (result.success) {
-        setItems(items.filter((item) => item._id !== currentItem._id));
+        setItems((prevItems) =>
+          prevItems.filter((item) => item._id !== currentItem._id)
+        );
+
         setIsDeleteModalOpen(false);
         setCurrentItem(null);
+
         showToast("Deleted successfully", "success");
       } else {
-        alert("Failed to delete item: " + result.message);
+        showToast(result.message || "Failed to delete item", "error");
       }
     } catch (err) {
-      alert("Error deleting item: " + err.message);
+      console.error(err);
+
+      showToast(err.message || "Error deleting item", "error");
     } finally {
       setActionLoading(false);
     }
   };
 
+  // =========================================================
+  // PAGINATION
+  // =========================================================
+
   const indexOfFirstItem = (currentPage - 1) * itemsPerPage;
+
+  // =========================================================
+  // CREATE ITEM
+  // =========================================================
+
   const handleCreateItem = async () => {
     try {
-      const formData = new FormData();
+      const payload = {
+        title: newItem?.title || "",
+        details: newItem?.details || "",
 
-      Object.keys(newItem).forEach((key) => {
-        if (key === "images") {
-          newItem.images.forEach((img) => {
-            formData.append("images", img);
-          });
-        } else if (key === "location") {
-          formData.append("location", JSON.stringify(newItem.location));
-        } else if (key === "preferredCommunication") {
-          formData.append(key, newItem[key]);
-        } else {
-          formData.append(key, newItem[key]);
-        }
-      });
+        // Category ID
+        category: newItem?.category || "",
 
-      const result = await createMarketplaceItemAPI(formData);
+        // Sub-category string
+        subCategory: newItem?.subCategory || "",
 
-      if (result.success) {
+        // Price
+        price: Number(newItem?.price || 0),
+
+        // Images
+        images: newItem?.images || [],
+
+        // Location mapping
+        location: {
+          type: "Point",
+          coordinates: [
+            Number(newItem?.location?.coordinates?.[0] || 0), // longitude
+            Number(newItem?.location?.coordinates?.[1] || 0), // latitude
+          ],
+          address: newItem?.location?.address || "",
+        },
+
+        // Communication mapping
+        preferredCommunication: {
+          call: Boolean(newItem?.preferredCommunication?.call),
+          chat: Boolean(newItem?.preferredCommunication?.chat),
+        },
+
+        // Status
+        isActive: newItem?.isActive !== false,
+        isFeatured: Boolean(newItem?.isFeatured),
+
+        // Selected user
+        userid: newItem?.userid || "",
+      };
+
+      const response = await createItem(payload);
+
+      if (response?.success) {
+        // success toast (react-toastify)
+        toast.success(response?.message || "Item created successfully");
+
         setIsAddModalOpen(false);
-        setNewItem({});
+
+        // reset form
+        setNewItem({
+          title: "",
+          details: "",
+          category: "",
+          subCategory: "",
+          price: 0,
+          images: [],
+          location: {
+            type: "Point",
+            coordinates: [0, 0],
+            address: "",
+          },
+          preferredCommunication: {
+            call: false,
+            chat: false,
+          },
+          isActive: true,
+          isFeatured: false,
+          userid: "",
+        });
+
+        // refresh marketplace list
         fetchMarketplaceData(currentPage);
-        showToast("Item created successfully", "success");
       } else {
-        showToast(result.message || "Create failed", "error");
+        toast.error(response?.message || "Failed to create marketplace item");
       }
-    } catch (err) {
-      showToast(err.message || "Error creating item", "error");
+    } catch (error) {
+      console.error("Create item error:", error);
+
+      toast.error(
+        error?.response?.data?.message || "Failed to create marketplace item"
+      );
     }
   };
 
   return (
     <div className="p-6 md:p-10 bg-slate-50/50 min-h-screen font-sans text-slate-800 relative antialiased selection:bg-indigo-500 selection:text-white">
-      {toast.visible && (
-        <div className="fixed top-6 right-6 z-[1100] animate-bounce-short">
+      {/* =====================================================
+          LOCAL TOAST BANNER
+      ===================================================== */}
+
+      {toastState.visible && (
+        <div className="fixed top-6 right-6 z-[1200] animate-bounce-short">
           <div
             className={`flex items-center gap-3.5 px-6 py-4 rounded-2xl shadow-xl backdrop-blur-md border text-white font-medium text-xs tracking-wide transition-all duration-300 ${
-              toast.type === "success"
+              toastState.type === "success"
                 ? "bg-slate-900/95 border-emerald-500/30 shadow-emerald-950/10"
                 : "bg-slate-900/95 border-rose-500/30 shadow-rose-950/10"
             }`}
           >
             <div
               className={`p-1.5 rounded-lg ${
-                toast.type === "success"
+                toastState.type === "success"
                   ? "bg-emerald-500/20 text-emerald-400"
                   : "bg-rose-500/20 text-rose-400"
               }`}
             >
-              {toast.type === "success" ? (
+              {toastState.type === "success" ? (
                 <CheckCircle size={15} />
               ) : (
                 <AlertCircle size={15} />
               )}
             </div>
-            <p className="pr-4">{toast.message}</p>
+
+            <p className="pr-4">{toastState.message}</p>
+
             <button
-              onClick={() => setToast({ ...toast, visible: false })}
+              onClick={() =>
+                setToastState({ ...toastState, visible: false })
+              }
               className="ml-auto p-1 rounded-lg hover:bg-slate-800 transition-colors"
             >
               <X size={14} className="text-slate-400" />
@@ -300,40 +519,27 @@ const MarketplaceManager = () => {
         </div>
       )}
 
+      {/* =====================================================
+          HEADER
+      ===================================================== */}
+
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6">
         <div>
           <span className="bg-indigo-50 text-blue-600 px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase border border-indigo-100/50 inline-flex items-center gap-1.5 mb-2">
             System Administrator
           </span>
+
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight sm:text-4xl">
             Marketplace Manager
           </h1>
+
           <p className="text-slate-500 text-xs mt-1.5 font-medium">
-            Perform administrative listing tasks, monitor telemetry, and assign
-            item parameters.
+            Perform administrative listing tasks, monitor telemetry, and
+            assign item parameters.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          <div className="bg-white p-1.5 rounded-2xl border border-slate-200/60 shadow-sm flex-1 sm:flex-initial">
-            <select
-              value={
-                location.pathname === "/user-marketplace" ? "User" : "Admin"
-              }
-              onChange={(e) => {
-                if (e.target.value === "Admin") {
-                  navigate("/Marketplace");
-                } else if (e.target.value === "User") {
-                  navigate("/user-marketplace");
-                }
-              }}
-              className="w-full bg-transparent text-slate-700 rounded-xl px-4 py-2 text-xs font-bold focus:outline-none cursor-pointer"
-            >
-              <option value="Admin">Admin View</option>
-              <option value="User">User View</option>
-            </select>
-          </div>
-
           <button
             onClick={() => fetchMarketplaceData(currentPage)}
             className="flex items-center justify-center gap-2 px-5 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-2xl shadow-sm transition-all duration-200 active:scale-95 flex-1 sm:flex-initial"
@@ -357,49 +563,118 @@ const MarketplaceManager = () => {
         </div>
       </div>
 
+      {/* =====================================================
+          STATS
+      ===================================================== */}
+
       {!loading && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10 animate-fade-in">
-          <StatCard
-            title="Total items"
-            value={stats.total}
-            icon={<ShoppingBag size={18} />}
-            gradient="from-indigo-500 to-blue-600"
-          />
-          <StatCard
-            title="Active items"
-            value={stats.active}
-            icon={<Eye size={18} />}
-            gradient="from-emerald-500 to-teal-600"
-          />
-          <StatCard
-            title="Featured ads"
-            value={stats.featured}
-            icon={<Star size={18} className="fill-white/20" />}
-            gradient="from-amber-500 to-orange-600"
-          />
-          <StatCard
-            title="Total valuation"
-            value={`₹${stats.sum.toLocaleString()}`}
-            icon={<DollarSign size={18} />}
-            gradient="from-rose-500 to-pink-600"
-          />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+          {/* TOTAL POSTS */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Total Posts
+                </p>
+                <h3 className="text-2xl font-extrabold text-slate-900 mt-2">
+                  {stats?.totalItems ?? 0}
+                </h3>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                <Package size={19} />
+              </div>
+            </div>
+          </div>
+
+          {/* ACTIVE POSTS */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Active Posts
+                </p>
+                <h3 className="text-2xl font-extrabold text-slate-900 mt-2">
+                  {stats?.activeItems ?? 0}
+                </h3>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center hover:bg-emerald-200 transition">
+                <Eye size={19} />
+              </div>
+            </div>
+          </div>
+
+          {/* EXPIRED POSTS */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Expired Posts
+                </p>
+                <h3 className="text-2xl font-extrabold text-slate-900 mt-2">
+                  {(stats?.totalItems ?? 0) - (stats?.activeItems ?? 0)}
+                </h3>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-red-100 text-red-600 flex items-center justify-center">
+                <Package size={19} />
+              </div>
+            </div>
+          </div>
+
+          {/* TOTAL CREDITS */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Total Credits Spent
+                </p>
+                <h3 className="text-2xl font-extrabold text-slate-900 mt-2">
+                  {stats?.totalCreditsSpent ?? 0}
+                </h3>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center">
+                <CreditCard size={19} />
+              </div>
+            </div>
+          </div>
+
+          {/* FEATURED */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Featured Posts
+                </p>
+                <h3 className="text-2xl font-extrabold text-slate-900 mt-2">
+                  {stats?.isFeatured ?? 0}
+                </h3>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+                <Star size={19} />
+              </div>
+            </div>
+          </div>
         </div>
       )}
+
+      {/* =====================================================
+          LOADING
+      ===================================================== */}
 
       {loading && (
         <div className="flex flex-col items-center justify-center p-24 bg-white rounded-3xl border border-slate-200/60 shadow-sm mb-10">
           <div className="relative mb-4">
             <div className="absolute -inset-1 rounded-full bg-indigo-500/10 animate-ping" />
-            <Loader2
-              size={32}
-              className="animate-spin text-indigo-600 relative"
-            />
+            <Loader2 size={32} className="animate-spin text-indigo-600 relative" />
           </div>
           <p className="text-slate-500 text-xs font-semibold">
             Syncing records database...
           </p>
         </div>
       )}
+
+      {/* =====================================================
+          TABLE
+      ===================================================== */}
 
       {!loading && (
         <div className="bg-white rounded-3xl shadow-sm border border-slate-200/60 overflow-hidden mb-10">
@@ -430,6 +705,7 @@ const MarketplaceManager = () => {
                   </th>
                 </tr>
               </thead>
+
               <tbody className="divide-y divide-slate-100">
                 {items.map((item, index) => (
                   <tr
@@ -439,6 +715,7 @@ const MarketplaceManager = () => {
                     <td className="p-5 text-xs font-bold text-slate-400 text-center">
                       {indexOfFirstItem + index + 1}
                     </td>
+
                     <td className="p-5 max-w-sm">
                       <div className="flex gap-4 items-center">
                         {item.images && item.images.length > 0 ? (
@@ -454,26 +731,30 @@ const MarketplaceManager = () => {
                             <ImageOff size={16} />
                           </div>
                         )}
+
                         <div className="truncate">
                           <p className="font-bold text-slate-800 text-sm leading-snug tracking-tight">
                             {item.title}
                           </p>
                           <p className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-1.5 font-semibold">
-                            <MapPin size={11} className="text-indigo-400" />{" "}
+                            <MapPin size={11} className="text-indigo-400" />
                             {item.location?.address ||
                               "No Coordinates Assigned"}
                           </p>
                         </div>
                       </div>
                     </td>
+
                     <td className="p-5">
                       <span className="bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-xl text-[10px] font-extrabold tracking-wider uppercase border border-indigo-100/50">
                         {item.category}
                       </span>
                     </td>
+
                     <td className="p-5 text-xs font-extrabold text-slate-800">
-                      ₹{item.price.toLocaleString()}
+                      ₹{Number(item.price || 0).toLocaleString()}
                     </td>
+
                     <td className="p-5 text-center">
                       <div className="inline-flex items-center justify-center">
                         <Star
@@ -486,6 +767,7 @@ const MarketplaceManager = () => {
                         />
                       </div>
                     </td>
+
                     <td className="p-5 text-center">
                       <span
                         className={`text-[9px] font-bold px-3 py-1.5 rounded-xl tracking-widest inline-block uppercase ${
@@ -497,19 +779,30 @@ const MarketplaceManager = () => {
                         {item.isActive ? "Active" : "Inactive"}
                       </span>
                     </td>
+
                     <td className="p-5">
                       <div className="flex justify-center items-center gap-2">
+                        <button
+                          onClick={() => openViewModal(item)}
+                          className="p-2 rounded-xl hover:bg-indigo-50 text-indigo-600 transition"
+                        >
+                          <Eye size={16} />
+                        </button>
+
                         <button
                           onClick={() => openEditModal(item)}
                           className="flex items-center gap-1.5 px-3.5 py-2 text-[10px] font-bold rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-all duration-200 shadow-sm"
                         >
-                          <Edit size={12} /> Edit
+                          <Edit size={12} />
+                          Edit
                         </button>
+
                         <button
                           onClick={() => openDeleteModal(item)}
                           className="flex items-center gap-1.5 px-3.5 py-2 text-[10px] font-bold rounded-xl border border-rose-100/80 bg-rose-50/50 text-rose-600 hover:bg-rose-600 hover:text-white hover:border-transparent transition-all duration-200 shadow-sm"
                         >
-                          <Trash2 size={12} /> Remove
+                          <Trash2 size={12} />
+                          Remove
                         </button>
                       </div>
                     </td>
@@ -517,6 +810,8 @@ const MarketplaceManager = () => {
                 ))}
               </tbody>
             </table>
+
+            {/* EMPTY */}
             {items.length === 0 && (
               <div className="p-24 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
                 <Layers size={36} className="text-slate-300 stroke-[1.5]" />
@@ -524,27 +819,34 @@ const MarketplaceManager = () => {
                   Zero Listings Found
                 </p>
                 <p className="text-[10px] text-slate-400 max-w-xs">
-                  There are currently no items available inside the marketplace
-                  storehouse.
+                  There are currently no items available inside the
+                  marketplace storehouse.
                 </p>
               </div>
             )}
           </div>
 
+          {/* PAGINATION */}
+
           <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-5 bg-white border-t border-slate-100 gap-4">
             <p className="text-xs font-semibold text-slate-400">
-              Showing {indexOfFirstItem + 1} to{" "}
+              Showing {totalItems === 0 ? 0 : indexOfFirstItem + 1} to{" "}
               {Math.min(indexOfFirstItem + items.length, totalItems)} of{" "}
               {totalItems} listings
             </p>
+
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                onClick={() =>
+                  setCurrentPage((prev) => Math.max(prev - 1, 1))
+                }
                 disabled={currentPage === 1}
                 className="px-4 py-2 text-xs font-bold bg-white border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-50 inline-flex items-center gap-1 transition-all duration-150"
               >
-                <ChevronLeft size={14} /> Previous
+                <ChevronLeft size={14} />
+                Previous
               </button>
+
               <div className="flex items-center gap-1">
                 {[...Array(totalPages)].map((_, i) => (
                   <button
@@ -560,6 +862,7 @@ const MarketplaceManager = () => {
                   </button>
                 ))}
               </div>
+
               <button
                 onClick={() =>
                   setCurrentPage((prev) => Math.min(prev + 1, totalPages))
@@ -567,16 +870,22 @@ const MarketplaceManager = () => {
                 disabled={currentPage === totalPages || totalPages === 0}
                 className="px-4 py-2 text-xs font-bold bg-white border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1 transition-all duration-150"
               >
-                Next <ChevronRight size={14} />
+                Next
+                <ChevronRight size={14} />
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* =====================================================
+          EDIT MODAL
+      ===================================================== */}
+
       {isEditModalOpen && currentItem && (
         <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md transition-all duration-300">
-          <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 transform scale-100 transition-all duration-300">
+          <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100">
+            {/* HEADER */}
             <div className="flex items-center justify-between px-8 py-5 border-b border-slate-100 bg-slate-50/50">
               <div>
                 <h2 className="text-base font-extrabold text-slate-900">
@@ -586,6 +895,7 @@ const MarketplaceManager = () => {
                   Adjust credentials, status, and tracking info
                 </p>
               </div>
+
               <button
                 onClick={() => setIsEditModalOpen(false)}
                 className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors"
@@ -594,7 +904,9 @@ const MarketplaceManager = () => {
               </button>
             </div>
 
+            {/* BODY */}
             <div className="p-8 space-y-5 max-h-[60vh] overflow-y-auto">
+              {/* TITLE */}
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
                   Item Title
@@ -609,6 +921,7 @@ const MarketplaceManager = () => {
                 />
               </div>
 
+              {/* PRICE + STATUS */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
@@ -639,7 +952,7 @@ const MarketplaceManager = () => {
                         isActive: e.target.value === "true",
                       })
                     }
-                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all duration-200 cursor-pointer"
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium focus:outline-none cursor-pointer"
                   >
                     <option value="true">Active</option>
                     <option value="false">Inactive</option>
@@ -647,6 +960,7 @@ const MarketplaceManager = () => {
                 </div>
               </div>
 
+              {/* FEATURED + COMMUNICATION */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
@@ -660,7 +974,7 @@ const MarketplaceManager = () => {
                         isFeatured: e.target.value === "true",
                       })
                     }
-                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all duration-200 cursor-pointer"
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium focus:outline-none cursor-pointer"
                   >
                     <option value="true">Featured (Star Icon)</option>
                     <option value="false">Standard Listing</option>
@@ -673,7 +987,11 @@ const MarketplaceManager = () => {
                   </label>
                   <input
                     type="text"
-                    value={currentItem.preferredCommunication || ""}
+                    value={
+                      typeof currentItem.preferredCommunication === "string"
+                        ? currentItem.preferredCommunication
+                        : ""
+                    }
                     onChange={(e) =>
                       setCurrentItem({
                         ...currentItem,
@@ -681,10 +999,12 @@ const MarketplaceManager = () => {
                       })
                     }
                     placeholder="e.g. Call, Chat"
-                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all duration-200"
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium"
                   />
                 </div>
               </div>
+
+              {/* LOCATION BUTTON */}
               <div className="mb-4">
                 <button
                   type="button"
@@ -694,6 +1014,8 @@ const MarketplaceManager = () => {
                   📍 Fetch Current Location
                 </button>
               </div>
+
+              {/* ADDRESS */}
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
                   Listing Location Address
@@ -710,10 +1032,11 @@ const MarketplaceManager = () => {
                       },
                     })
                   }
-                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all duration-200"
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium"
                 />
               </div>
 
+              {/* COORDINATES */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
@@ -721,7 +1044,6 @@ const MarketplaceManager = () => {
                   </label>
                   <input
                     type="text"
-                    placeholder="Latitude"
                     value={currentItem.location?.coordinates?.[0] || ""}
                     onChange={(e) =>
                       setCurrentItem({
@@ -735,16 +1057,16 @@ const MarketplaceManager = () => {
                         },
                       })
                     }
-                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all duration-200"
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium"
                   />
                 </div>
+
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
                     Longitude
                   </label>
                   <input
                     type="text"
-                    placeholder="Longitude"
                     value={currentItem.location?.coordinates?.[1] || ""}
                     onChange={(e) =>
                       setCurrentItem({
@@ -758,27 +1080,31 @@ const MarketplaceManager = () => {
                         },
                       })
                     }
-                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all duration-200"
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium"
                   />
                 </div>
               </div>
 
+              {/* IMAGE */}
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
                   Update Listing Image Preview
                 </label>
+
                 <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-200 border-dashed rounded-3xl hover:border-indigo-500 transition-all duration-200">
                   <div className="space-y-1 text-center">
                     <div className="flex text-xs text-slate-600">
-                      <label className="relative cursor-pointer bg-white rounded-md font-semibold text-indigo-600 hover:text-indigo-500 focus-within:outline-none">
+                      <label className="relative cursor-pointer bg-white rounded-md font-semibold text-indigo-600 hover:text-indigo-500">
                         <span>Click to upload new image file</span>
                         <input
                           type="file"
                           accept="image/*"
                           onChange={(e) => {
-                            const file = e.target.files[0];
+                            const file = e.target.files?.[0];
+
                             if (file) {
                               const imageUrl = URL.createObjectURL(file);
+
                               setCurrentItem({
                                 ...currentItem,
                                 images: [imageUrl],
@@ -789,6 +1115,7 @@ const MarketplaceManager = () => {
                         />
                       </label>
                     </div>
+
                     <p className="text-[10px] text-slate-400 font-medium">
                       JPEG, PNG, GIF up to 10MB
                     </p>
@@ -797,6 +1124,7 @@ const MarketplaceManager = () => {
               </div>
             </div>
 
+            {/* FOOTER */}
             <div className="px-8 py-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
               <button
                 onClick={() => setIsEditModalOpen(false)}
@@ -804,14 +1132,13 @@ const MarketplaceManager = () => {
               >
                 Discard
               </button>
+
               <button
                 onClick={handleUpdateConfirm}
                 disabled={actionLoading}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl font-bold text-xs shadow-md shadow-indigo-500/10 flex items-center gap-2 disabled:opacity-70"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl font-bold text-xs shadow-md flex items-center gap-2 disabled:opacity-70"
               >
-                {actionLoading && (
-                  <Loader2 size={14} className="animate-spin" />
-                )}
+                {actionLoading && <Loader2 size={14} className="animate-spin" />}
                 Save Modifications
               </button>
             </div>
@@ -819,273 +1146,250 @@ const MarketplaceManager = () => {
         </div>
       )}
 
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md transition-all duration-300">
-          <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 transform scale-100 transition-all duration-300">
-            <div className="flex items-center justify-between px-8 py-5 border-b border-slate-100 bg-slate-50/50">
+      {/* =====================================================
+          VIEW MODAL
+      ===================================================== */}
+
+      {isViewModalOpen && currentItem && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-md">
+          <div className="bg-white rounded-[28px] shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden border border-slate-200">
+            {/* HEADER */}
+            <div className="flex items-center justify-between px-7 py-5 border-b border-slate-100 bg-slate-50/70">
               <div>
-                <h2 className="text-base font-extrabold text-slate-900">
-                  Register New Marketplace Entry
+                <span className="text-[9px] font-bold uppercase tracking-widest text-indigo-500">
+                  Marketplace
+                </span>
+                <h2 className="text-xl font-extrabold text-slate-900 mt-1">
+                  Marketplace Item Details
                 </h2>
-                <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                  Configure details, upload files, and allocate location
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Complete information about this marketplace listing
                 </p>
               </div>
+
               <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors"
+                onClick={() => setIsViewModalOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
 
-            <div className="p-8 space-y-5 max-h-[60vh] overflow-y-auto">
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                  Item Title
-                </label>
-                <input
-                  placeholder="e.g. Wireless Noise-Cancelling Headphones"
-                  onChange={(e) =>
-                    setNewItem({ ...newItem, title: e.target.value })
-                  }
-                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all duration-200"
-                />
+            {/* CONTENT */}
+            <div className="p-7 max-h-[75vh] overflow-y-auto">
+              {/* IMAGES */}
+              <div className="mb-7">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">
+                  Listing Images
+                </h3>
+
+                <div className="flex gap-4 flex-wrap">
+                  {currentItem.images?.length > 0 ? (
+                    currentItem.images.map((image, index) => (
+                      <div
+                        key={index}
+                        className="w-28 h-28 rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 shadow-sm"
+                      >
+                        <img
+                          src={image}
+                          alt="Item"
+                          className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                        />
+                      </div>
+                    ))
+                  ) : (
+                    <div className="w-28 h-28 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400">
+                      <ImageOff size={22} />
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                  Item Description Details
-                </label>
-                <textarea
-                  placeholder="e.g. Gently used audio headsets with original boxing and charge brick..."
-                  rows={2}
-                  onChange={(e) =>
-                    setNewItem({ ...newItem, details: e.target.value })
-                  }
-                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all duration-200 resize-none"
-                />
-              </div>
+              {/* MAIN DETAILS */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                  <p className="text-[9px] uppercase tracking-widest font-bold text-slate-400">
+                    Title
+                  </p>
+                  <p className="text-sm font-bold text-slate-800 mt-1">
+                    {currentItem.title || "-"}
+                  </p>
+                </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                  <p className="text-[9px] uppercase tracking-widest font-bold text-slate-400">
+                    Price
+                  </p>
+                  <p className="text-sm font-bold text-emerald-600 mt-1">
+                    ₹{currentItem.price?.toLocaleString() || "-"}
+                  </p>
+                </div>
+
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                  <p className="text-[9px] uppercase tracking-widest font-bold text-slate-400">
                     Category
-                  </label>
-                  <input
-                    placeholder="e.g. Electronics"
-                    onChange={(e) =>
-                      setNewItem({ ...newItem, category: e.target.value })
-                    }
-                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all duration-200"
-                  />
+                  </p>
+                  <p className="text-sm font-semibold text-slate-700 mt-1">
+                    {currentItem.category || "-"}
+                  </p>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                    Sub-category
-                  </label>
-                  <input
-                    placeholder="e.g. Audio Gadgets"
-                    onChange={(e) =>
-                      setNewItem({ ...newItem, subCategory: e.target.value })
-                    }
-                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all duration-200"
-                  />
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                  <p className="text-[9px] uppercase tracking-widest font-bold text-slate-400">
+                    Sub Category
+                  </p>
+                  <p className="text-sm font-semibold text-slate-700 mt-1">
+                    {currentItem.subCategory || "-"}
+                  </p>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                  Geographic Address Info
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    placeholder="Provide a valid marketplace address"
-                    value={newItem.location?.address || ""}
-                    onChange={(e) =>
-                      setNewItem({
-                        ...newItem,
-                        location: {
-                          ...newItem.location,
-                          address: e.target.value,
-                        },
-                      })
-                    }
-                    className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all duration-200"
-                  />
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                  <p className="text-[9px] uppercase tracking-widest font-bold text-slate-400">
+                    Posted By
+                  </p>
                   <button
                     type="button"
-                    onClick={getCurrentLocation}
-                    className="px-4 py-3 bg-indigo-50 text-indigo-600 rounded-2xl text-xs font-bold hover:bg-indigo-100 transition-all duration-200 flex items-center gap-1.5 border border-indigo-100"
+                    onClick={openUserDetailModal}
+                    className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 hover:underline mt-1"
                   >
-                    <Compass size={14} /> Fetch Coordinates
+                    User Details
                   </button>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                    Latitude Coordinates
-                  </label>
-                  <input
-                    placeholder="e.g. 28.6139"
-                    value={newItem.location?.coordinates?.[0] || ""}
-                    readOnly
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 text-slate-400 rounded-2xl text-xs font-medium focus:outline-none"
-                  />
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                  <p className="text-[9px] uppercase tracking-widest font-bold text-slate-400">
+                    Phone
+                  </p>
+                  <p className="text-sm font-semibold text-slate-700 mt-1">
+                    {currentItem.user?.mobile || currentItem.phone || "-"}
+                  </p>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                    Longitude Coordinates
-                  </label>
-                  <input
-                    placeholder="e.g. 77.2090"
-                    value={newItem.location?.coordinates?.[1] || ""}
-                    readOnly
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 text-slate-400 rounded-2xl text-xs font-medium focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                    Preference
-                  </label>
-                  <select
-                    value={
-                      currentItem?.preferredCommunication?.call
-                        ? "call"
-                        : currentItem?.preferredCommunication?.chat
-                          ? "chat"
-                          : ""
-                    }
-                    onChange={(e) =>
-                      setCurrentItem({
-                        ...currentItem,
-                        preferredCommunication: {
-                          call: e.target.value === "call",
-                          chat: e.target.value === "chat",
-                        },
-                      })
-                    }
-                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium"
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                  <p className="text-[9px] uppercase tracking-widest font-bold text-slate-400">
+                    Status
+                  </p>
+                  <span
+                    className={`inline-flex mt-1 px-3 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider ${
+                      currentItem.isActive
+                        ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
+                        : "bg-rose-50 text-rose-600 border border-rose-100"
+                    }`}
                   >
-                    <option value="">Select Mode</option>
-                    <option value="call">Call (Phone Required)</option>
-                    <option value="chat">Chat Only</option>
-                  </select>
-                  <input
-                    type="text"
-                    placeholder="Enter 10-digit phone number"
-                    value={currentItem.phone || ""}
-                    onChange={(e) =>
-                      setCurrentItem({
-                        ...currentItem,
-                        phone: e.target.value,
-                      })
-                    }
-                    className="w-full mt-2 px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium"
-                  />
+                    {currentItem.isActive ? "Active" : "Inactive"}
+                  </span>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                    Status Flag
-                  </label>
-                  <select
-                    onChange={(e) =>
-                      setNewItem({
-                        ...newItem,
-                        isActive: e.target.value === "true",
-                      })
-                    }
-                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all duration-200 cursor-pointer"
-                  >
-                    <option value="true">Active State</option>
-                    <option value="false">Inactive State</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                    Placement
-                  </label>
-                  <select
-                    onChange={(e) =>
-                      setNewItem({
-                        ...newItem,
-                        isFeatured: e.target.value === "true",
-                      })
-                    }
-                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all duration-200 cursor-pointer"
-                  >
-                    <option value="true">Featured Listing</option>
-                    <option value="false">Normal Listing</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                  Attach Image Attachment
-                </label>
-                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-200 border-dashed rounded-3xl hover:border-emerald-500 transition-all duration-200">
-                  <div className="space-y-1 text-center">
-                    <div className="flex text-xs text-slate-600">
-                      <label className="relative cursor-pointer bg-white rounded-md font-semibold text-emerald-600 hover:text-emerald-500 focus-within:outline-none">
-                        <span>Click to attach asset image file</span>
-                        <input
-                          type="file"
-                          onChange={(e) =>
-                            setNewItem({
-                              ...newItem,
-                              images: [e.target.files[0]],
-                            })
-                          }
-                          className="sr-only"
-                        />
-                      </label>
-                    </div>
-                    <p className="text-[10px] text-slate-400 font-medium">
-                      JPEG, PNG, GIF up to 10MB
-                    </p>
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                  <p className="text-[9px] uppercase tracking-widest font-bold text-slate-400">
+                    Featured
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Star
+                      size={16}
+                      className={
+                        currentItem.isFeatured
+                          ? "text-amber-400 fill-amber-400"
+                          : "text-slate-300"
+                      }
+                    />
+                    <span className="text-sm font-semibold text-slate-700">
+                      {currentItem.isFeatured ? "Yes" : "No"}
+                    </span>
                   </div>
                 </div>
+
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                  <p className="text-[9px] uppercase tracking-widest font-bold text-slate-400">
+                    Preferred Communication
+                  </p>
+                  <p className="text-sm font-semibold text-slate-700 mt-1">
+                    {currentItem.preferredCommunication?.call
+                      ? "Call"
+                      : currentItem.preferredCommunication?.chat
+                      ? "Chat"
+                      : typeof currentItem.preferredCommunication === "string"
+                      ? currentItem.preferredCommunication
+                      : "-"}
+                  </p>
+                </div>
+
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                  <p className="text-[9px] uppercase tracking-widest font-bold text-slate-400">
+                    Coordinates
+                  </p>
+                  <p className="text-sm font-semibold text-slate-700 mt-1">
+                    {currentItem.location?.coordinates?.length
+                      ? `${currentItem.location.coordinates[0]}, ${currentItem.location.coordinates[1]}`
+                      : "-"}
+                  </p>
+                </div>
+              </div>
+
+              {/* DESCRIPTION */}
+              <div className="mt-4 bg-slate-50 rounded-2xl p-5 border border-slate-100">
+                <p className="text-[9px] uppercase tracking-widest font-bold text-slate-400 mb-2">
+                  Description
+                </p>
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  {currentItem.description ||
+                    currentItem.details ||
+                    "No description available"}
+                </p>
+              </div>
+
+              {/* LOCATION */}
+              <div className="mt-4 bg-indigo-50/60 rounded-2xl p-5 border border-indigo-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <MapPin size={16} className="text-indigo-500" />
+                  <p className="text-[9px] uppercase tracking-widest font-bold text-indigo-500">
+                    Listing Location
+                  </p>
+                </div>
+                <p className="text-sm font-semibold text-slate-700">
+                  {currentItem.location?.address || "No location available"}
+                </p>
               </div>
             </div>
 
-            <div className="px-8 py-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+            {/* FOOTER */}
+            <div className="px-7 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
               <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="px-5 py-3 border border-slate-200 text-slate-500 hover:text-slate-700 rounded-2xl font-bold text-xs transition-colors bg-white"
+                onClick={() => setIsViewModalOpen(false)}
+                className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition"
               >
-                Discard
-              </button>
-              <button
-                onClick={handleCreateItem}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl font-bold text-xs shadow-md shadow-emerald-500/10"
-              >
-                Register Entry
+                Close Details
               </button>
             </div>
           </div>
         </div>
       )}
 
+      <AddMarketplaceItemModal
+        isAddModalOpen={isAddModalOpen}
+        setIsAddModalOpen={setIsAddModalOpen}
+        newItem={newItem}
+        setNewItem={setNewItem}
+        getCurrentLocation={getCurrentLocation}
+        handleCreateItem={handleCreateItem}
+        categories={categories}
+        loadingCategories={loadingCategories}
+        users={users}
+        loadingUsers={loadingUsers}
+      />
+
       {isDeleteModalOpen && currentItem && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md transition-all duration-300">
-          <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-sm overflow-hidden border border-slate-100 transform scale-100 transition-all duration-300">
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md">
+          <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-sm overflow-hidden border border-slate-100">
             <div className="p-8 text-center">
               <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-3xl flex items-center justify-center mx-auto mb-5 border border-rose-100">
                 <AlertTriangle size={28} />
               </div>
+
               <h2 className="text-base font-extrabold text-slate-900">
                 Confirm Listing Removal
               </h2>
+
               <p className="text-slate-500 text-xs mt-2 px-2 leading-relaxed">
                 Are you completely sure you want to permanently remove item{" "}
                 <strong className="text-slate-800">
@@ -1094,11 +1398,12 @@ const MarketplaceManager = () => {
                 ? This action is non-reversible.
               </p>
             </div>
+
             <div className="px-8 py-5 bg-slate-50 border-t border-slate-100 flex flex-col gap-2">
               <button
                 onClick={handleDeleteConfirm}
                 disabled={actionLoading}
-                className="w-full bg-rose-500 hover:bg-rose-600 text-white py-3.5 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-70 shadow-lg shadow-rose-500/15"
+                className="w-full bg-rose-500 hover:bg-rose-600 text-white py-3.5 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-70 shadow-lg"
               >
                 {actionLoading ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -1107,6 +1412,7 @@ const MarketplaceManager = () => {
                 )}
                 Confirm Destructive Delete
               </button>
+
               <button
                 onClick={() => setIsDeleteModalOpen(false)}
                 disabled={actionLoading}
@@ -1118,31 +1424,16 @@ const MarketplaceManager = () => {
           </div>
         </div>
       )}
-    </div>
-  );
-};
 
-const StatCard = ({ title, value, icon, gradient }) => {
-  return (
-    <div className="bg-white border border-slate-200/60 p-6 rounded-3xl shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group">
-      <div
-        className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${gradient} opacity-5 rounded-full -mr-6 -mt-6 transition-transform group-hover:scale-125 duration-300`}
-      />
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            {title}
-          </p>
-          <p className="text-3xl font-extrabold text-slate-900 mt-2 tracking-tight">
-            {value}
-          </p>
-        </div>
-        <div
-          className={`w-12 h-12 bg-gradient-to-br ${gradient} text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/10`}
-        >
-          {icon}
-        </div>
-      </div>
+   
+
+      {isUserDetailModalOpen && selectedUser && (
+        <UserDetailModal
+          isOpen={isUserDetailModalOpen}
+          user={selectedUser}
+          onClose={closeUserDetailModal}
+        />
+      )}
     </div>
   );
 };
