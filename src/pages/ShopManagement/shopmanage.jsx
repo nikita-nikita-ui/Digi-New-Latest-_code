@@ -66,6 +66,18 @@ const ShopListManagement = () => {
     const [editingService, setEditingService] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [shopStats, setShopStats] = useState({
+        totalShops: 0,
+        activeShops: 0,
+        pro: 0,
+        plus: 0,
+        lite: 0,
+        free: 0,
+        expired: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0
+    });
     const [feedback, setFeedback] = useState({ show: false, message: "", type: "success" });
 
     const [formData, setFormData] = useState({
@@ -110,10 +122,23 @@ const ShopListManagement = () => {
     const fetchInitialData = useCallback(async () => {
         setLoading(true);
         try {
-            // Send search and filter to the backend so it searches the WHOLE database
             const response = await getAllShopsForAdmin(currentPage, searchTerm, activeFilter);
+
             setShops(response.data || []);
             setTotalPages(response.pagination?.totalPages || 1);
+
+            setShopStats({
+                totalShops: response.stats?.totalShops || 0,
+                activeShops: response.stats?.activeShops || 0,
+                pro: response.stats?.pro || 0,
+                plus: response.stats?.plus || 0,
+                lite: response.stats?.lite || 0,
+                free: response.stats?.free || 0,
+                expired: response.stats?.expired || 0,
+                pending: response.stats?.pending || 0,
+                approved: response.stats?.approved || 0,
+                rejected: response.stats?.rejected || 0
+            });
         } catch (err) {
             showFeedback("Failed to load data", "error");
         } finally {
@@ -369,14 +394,21 @@ const ShopListManagement = () => {
     };
 
     const filteredShops = shops.filter(shop => {
-        const matchesSearch = shop.businessName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            shop.ownerName?.toLowerCase().includes(searchTerm.toLowerCase());
+        const search = searchTerm.toLowerCase();
+
+        const matchesSearch =
+            shop.businessName?.toLowerCase().includes(search) ||
+            shop.category?.toLowerCase().includes(search);
+
+        if (!matchesSearch) return false;
 
         if (!matchesSearch) return false;
         if (activeFilter === "All") return true;
 
-        // Status normalization for filtering
-        const currentStatus = (shop.status === "active") ? "Approved" : shop.status;
+        const currentStatus = Array.isArray(shop.status)
+            ? shop.status[0]
+            : shop.status;
+
         return currentStatus === activeFilter;
     });
 
@@ -414,11 +446,39 @@ const ShopListManagement = () => {
             </div>
 
             <div className="flex gap-2 mb-8 overflow-x-auto pb-2 no-scrollbar">
-                {["All", "Pending", "Approved", "Rejected"].map((f) => (
+                {["All", "Pending", "Approved", "Rejected", "Expired"].map((f) => (
                     <button key={f} onClick={() => setActiveFilter(f)} className={`px-6 py-2.5 rounded-xl text-xs font-bold tracking-wide transition-all ${activeFilter === f ? "bg-slate-900 text-white shadow-md" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-50"}`}>{f}</button>
                 ))}
             </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
 
+                {[
+                    ["Total Shops", shopStats.totalShops],
+                    ["Active Shops", shopStats.activeShops],
+                    ["Pro", shopStats.pro],
+                    ["Plus", shopStats.plus],
+                    ["Lite", shopStats.lite],
+                    ["Free", shopStats.free],
+                    ["Expired", shopStats.expired],
+                    ["Pending", shopStats.pending],
+                    ["Approved", shopStats.approved],
+                    ["Rejected", shopStats.rejected]
+                ].map(([label, count]) => (
+                    <div
+                        key={label}
+                        className="bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-4"
+                    >
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                            {label}
+                        </p>
+
+                        <p className="text-3xl font-black text-indigo-600 mt-2">
+                            {count}
+                        </p>
+                    </div>
+                ))}
+
+            </div>
             <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
@@ -450,7 +510,6 @@ const ShopListManagement = () => {
                                         <td className="p-6">
                                             <div className="text-base font-bold text-slate-900">{shop.businessName}</div>
                                             <div className="flex items-center gap-2 mt-1.5">
-                                                <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded uppercase">{shop.category}</span>
                                                 <span className="text-[10px] text-slate-400 font-bold flex items-center gap-1">
                                                     <MapPin size={10} />
                                                     {shop.location?.address || shop.address || "N/A"}
@@ -835,70 +894,467 @@ const ShopListManagement = () => {
                             {modalType === 'view' && (
                                 detailLoading ? (
                                     <div className="flex flex-col items-center justify-center py-32">
-                                        <Loader2 className="animate-spin text-indigo-600 mb-4" size={48} />
-                                        <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Loading business profile...</p>
+                                        <Loader2
+                                            className="animate-spin text-indigo-600 mb-4"
+                                            size={48}
+                                        />
+                                        <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">
+                                            Loading business profile...
+                                        </p>
                                     </div>
                                 ) : shopDetail ? (
-                                    <div className="space-y-10">
+                                    <div className="space-y-8">
+
+                                        {/* ================= SHOP BANNER ================= */}
                                         <div className="relative h-60 w-full rounded-3xl overflow-hidden shadow-lg bg-slate-200">
-                                            <img src={shopDetail.businessImages?.[0] || "https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&q=80"} className="w-full h-full object-cover" alt="Banner" />
+
+                                            <img
+                                                src={
+                                                    shopDetail.businessImages?.[0] ||
+                                                    "https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&q=80"
+                                                }
+                                                className="w-full h-full object-cover"
+                                                alt="Banner"
+                                            />
+
                                             <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent"></div>
+
                                             <div className="absolute bottom-6 left-6 flex items-end gap-5">
-                                                <div className="w-24 h-24 rounded-2xl border-4 border-white shadow-xl overflow-hidden bg-white"><img src={shopDetail.ownerImage} className="w-full h-full object-cover" alt="Owner" /></div>
+
+                                                <div className="w-24 h-24 rounded-2xl border-4 border-white shadow-xl overflow-hidden bg-white">
+                                                    <img
+                                                        src={shopDetail.ownerImage}
+                                                        className="w-full h-full object-cover"
+                                                        alt="Owner"
+                                                    />
+                                                </div>
+
                                                 <div className="mb-1 text-white">
-                                                    <h2 className="text-3xl font-black">{shopDetail.businessName}</h2>
-                                                    <p className="text-indigo-200 font-bold text-[10px] uppercase tracking-widest">{shopDetail.category}</p>
+                                                    <h2 className="text-3xl font-black">
+                                                        {shopDetail.businessName}
+                                                    </h2>
+
+                                                    <p className="text-indigo-200 font-bold text-[10px] uppercase tracking-widest">
+                                                        {shopDetail.category || "Business"}
+                                                    </p>
                                                 </div>
+
                                             </div>
                                         </div>
+
+
+                                        {/* ================= SHOP ANALYTICS ================= */}
+                                        <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-6">
+
+                                            <div className="flex items-center justify-between mb-6 border-b pb-4">
+                                                <div>
+                                                    <h4 className="text-xl font-black text-slate-800">
+                                                        Shop Engagement
+                                                    </h4>
+
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                                                        Dummy Analytics Data
+                                                    </p>
+                                                </div>
+
+                                                <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-black uppercase">
+                                                    Analytics
+                                                </span>
+                                            </div>
+
+
+                                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+
+                                                {/* WhatsApp */}
+                                                <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
+                                                    <p className="text-[10px] font-black text-emerald-600 uppercase">
+                                                        WhatsApp Clicks
+                                                    </p>
+
+                                                    <p className="text-2xl font-black text-slate-800 mt-2">
+                                                        28
+                                                    </p>
+                                                </div>
+
+
+                                                {/* Calls */}
+                                                <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
+                                                    <p className="text-[10px] font-black text-blue-600 uppercase">
+                                                        Call Clicks
+                                                    </p>
+
+                                                    <p className="text-2xl font-black text-slate-800 mt-2">
+                                                        42
+                                                    </p>
+                                                </div>
+
+
+                                                {/* Chat */}
+                                                <div className="bg-violet-50 border border-violet-100 rounded-2xl p-4">
+                                                    <p className="text-[10px] font-black text-violet-600 uppercase">
+                                                        Chat Clicks
+                                                    </p>
+
+                                                    <p className="text-2xl font-black text-slate-800 mt-2">
+                                                        19
+                                                    </p>
+                                                </div>
+
+
+                                                {/* Profile */}
+                                                <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4">
+                                                    <p className="text-[10px] font-black text-amber-600 uppercase">
+                                                        Profile Opens
+                                                    </p>
+
+                                                    <p className="text-2xl font-black text-slate-800 mt-2">
+                                                        156
+                                                    </p>
+                                                </div>
+
+
+                                                {/* Shares */}
+                                                <div className="bg-pink-50 border border-pink-100 rounded-2xl p-4">
+                                                    <p className="text-[10px] font-black text-pink-600 uppercase">
+                                                        Shares
+                                                    </p>
+
+                                                    <p className="text-2xl font-black text-slate-800 mt-2">
+                                                        12
+                                                    </p>
+                                                </div>
+
+
+                                                {/* Saved */}
+                                                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                                                    <p className="text-[10px] font-black text-slate-500 uppercase">
+                                                        Saved Count
+                                                    </p>
+
+                                                    <p className="text-2xl font-black text-slate-800 mt-2">
+                                                        4
+                                                    </p>
+                                                </div>
+
+                                            </div>
+                                        </div>
+
+
+                                        {/* ================= BUTTON CHECKS ================= */}
+                                        <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-6">
+
+                                            <h4 className="text-lg font-black text-slate-800 mb-5">
+                                                Button Checks
+                                            </h4>
+
+                                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+
+                                                {[
+                                                    "WhatsApp",
+                                                    "Call",
+                                                    "Chat",
+                                                    "Profile",
+                                                    "Share",
+                                                    "Save"
+                                                ].map((buttonName) => (
+                                                    <div
+                                                        key={buttonName}
+                                                        className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3"
+                                                    >
+                                                        <span className="text-xs font-bold text-slate-700">
+                                                            {buttonName}
+                                                        </span>
+
+                                                        <CheckCircle
+                                                            size={17}
+                                                            className="text-emerald-500"
+                                                        />
+                                                    </div>
+                                                ))}
+
+                                            </div>
+                                        </div>
+
+
+                                        {/* ================= CORE INFORMATION ================= */}
                                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                            <div className="lg:col-span-2 space-y-10">
+
+                                            <div className="lg:col-span-2 space-y-8">
+
                                                 <DetailSection title="Core Information">
-                                                    <DetailItem label="Representative" value={shopDetail.ownerName} />
-                                                    <DetailItem label="Contact No." value={shopDetail.mobileNumber} />
-                                                    <DetailItem label="WhatsApp" value={shopDetail.whatsappNumber} />
-                                                    {/* Update this: */}
-                                                    <DetailItem label="Location" value={shopDetail.location?.address || shopDetail.location} />
-                                                    <DetailItem label="Full Address" value={shopDetail.address || shopDetail.location?.address} fullWidth />
-                                                    <DetailItem label="Description" value={shopDetail.details} fullWidth />
+
+                                                    <DetailItem
+                                                        label="Representative"
+                                                        value={shopDetail.ownerName}
+                                                    />
+
+                                                    <DetailItem
+                                                        label="Contact No."
+                                                        value={shopDetail.mobileNumber}
+                                                    />
+
+                                                    <DetailItem
+                                                        label="WhatsApp"
+                                                        value={shopDetail.whatsappNumber}
+                                                    />
+
+                                                    <DetailItem
+                                                        label="Category"
+                                                        value={shopDetail.category}
+                                                    />
+
+                                                    <DetailItem
+                                                        label="Location"
+                                                        value={
+                                                            shopDetail.location?.address ||
+                                                            shopDetail.location
+                                                        }
+                                                    />
+
+                                                    <DetailItem
+                                                        label="Full Address"
+                                                        value={
+                                                            shopDetail.address ||
+                                                            shopDetail.location?.address
+                                                        }
+                                                        fullWidth
+                                                    />
+
+                                                    <DetailItem
+                                                        label="Description"
+                                                        value={shopDetail.details}
+                                                        fullWidth
+                                                    />
+
                                                 </DetailSection>
+
+
+                                                {/* ================= DOCUMENTS ================= */}
                                                 <DetailSection title="Documents Preview">
+
                                                     <div className="space-y-2">
-                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Govt ID Proof</p>
-                                                        <img src={shopDetail.nationalIdImage} className="rounded-2xl border border-slate-200 w-full h-48 object-cover shadow-sm" alt="ID" />
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                            Govt ID Proof
+                                                        </p>
+
+                                                        <img
+                                                            src={shopDetail.nationalIdImage}
+                                                            className="rounded-2xl border border-slate-200 w-full h-48 object-cover shadow-sm"
+                                                            alt="ID"
+                                                        />
                                                     </div>
+
+
                                                     <div className="space-y-2">
-                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Portrait</p>
-                                                        <img src={shopDetail.ownerImage} className="rounded-2xl border border-slate-200 w-full h-48 object-cover shadow-sm" alt="Owner" />
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                            Portrait
+                                                        </p>
+
+                                                        <img
+                                                            src={shopDetail.ownerImage}
+                                                            className="rounded-2xl border border-slate-200 w-full h-48 object-cover shadow-sm"
+                                                            alt="Owner"
+                                                        />
                                                     </div>
+
                                                 </DetailSection>
+
                                             </div>
+
+
+                                            {/* ================= GALLERY ================= */}
                                             <div className="space-y-6">
+
                                                 <div className="bg-slate-50 rounded-[2rem] p-6 border border-slate-100">
-                                                    <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest mb-4">Gallery Showcase</h4>
+
+                                                    <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest mb-4">
+                                                        Gallery Showcase
+                                                    </h4>
+
                                                     <div className="grid grid-cols-2 gap-3">
+
                                                         {shopDetail.businessImages?.map((img, i) => (
-                                                            <div key={i} className="aspect-square rounded-xl overflow-hidden shadow-sm"><img src={img} className="w-full h-full object-cover" alt="Gallery" /></div>
+                                                            <div
+                                                                key={i}
+                                                                className="aspect-square rounded-xl overflow-hidden shadow-sm"
+                                                            >
+                                                                <img
+                                                                    src={img}
+                                                                    className="w-full h-full object-cover"
+                                                                    alt="Gallery"
+                                                                />
+                                                            </div>
                                                         ))}
+
                                                     </div>
+
                                                 </div>
+
                                             </div>
+
                                         </div>
-                                        <div className="bg-white rounded-[2rem] shadow-lg border border-indigo-100 p-6">
-                                            <h4 className="text-xl font-black text-indigo-700 mb-5 flex items-center gap-2 border-b pb-3"><List size={22} /> All Services ({businessServices.length})</h4>
-                                            {servicesLoading ? <div className="flex justify-center items-center py-10"><Loader2 className="animate-spin text-indigo-500" size={30} /></div> : businessServices.length === 0 ? <p className="text-center text-slate-500 font-medium italic py-10">No services listed for this business yet.</p> : (
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                    {businessServices.map(service => (
-                                                        <div key={service._id} className="border border-slate-200 rounded-xl p-5 hover:shadow-md transition-shadow bg-slate-50">
-                                                            <h5 className="text-lg font-bold text-slate-800 mb-1">{service.serviceTitle}</h5>
-                                                            <p className="text-sm text-slate-600 mb-3 line-clamp-2">{service.serviceDetails}</p>
-                                                            {service.serviceImages?.[0] && <img src={service.serviceImages[0]} alt={service.serviceTitle} className="w-full h-32 object-cover rounded-lg mb-3 border border-slate-100" />}
-                                                            <p className='text-[10px] text-indigo-500 font-semibold'>Images: {service.serviceImages?.length || 0}</p>
-                                                        </div>
-                                                    ))}
+
+
+                                        {/* ================= REVIEWS ================= */}
+                                        <div className="bg-white rounded-[2rem] shadow-lg border border-slate-200 p-6">
+
+                                            <div className="flex items-center justify-between mb-6 border-b pb-4">
+
+                                                <div>
+                                                    <h4 className="text-xl font-black text-slate-800">
+                                                        Reviews
+                                                    </h4>
+
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                                                        Customer Reviews
+                                                    </p>
                                                 </div>
-                                            )}
+
+                                                <div className="text-right">
+                                                    <p className="text-2xl font-black text-indigo-600">
+                                                        4.5
+                                                    </p>
+
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase">
+                                                        Average Rating
+                                                    </p>
+                                                </div>
+
+                                            </div>
+
+
+                                            <div className="space-y-4">
+
+                                                {[
+                                                    {
+                                                        name: "Rahul Sharma",
+                                                        rating: 5,
+                                                        review: "Excellent service and very professional staff.",
+                                                        date: "18 Sep 2026"
+                                                    },
+                                                    {
+                                                        name: "Priya Verma",
+                                                        rating: 4,
+                                                        review: "Good experience. Service was completed on time.",
+                                                        date: "15 Sep 2026"
+                                                    },
+                                                    {
+                                                        name: "Amit Kumar",
+                                                        rating: 5,
+                                                        review: "Very helpful and quick response from the shop.",
+                                                        date: "11 Sep 2026"
+                                                    }
+                                                ].map((review, index) => (
+
+                                                    <div
+                                                        key={index}
+                                                        className="border border-slate-100 rounded-2xl p-5 bg-slate-50"
+                                                    >
+
+                                                        <div className="flex items-start justify-between">
+
+                                                            <div>
+                                                                <p className="text-sm font-black text-slate-800">
+                                                                    {review.name}
+                                                                </p>
+
+                                                                <div className="flex items-center gap-1 mt-1">
+                                                                    {[1, 2, 3, 4, 5].map(star => (
+                                                                        <span
+                                                                            key={star}
+                                                                            className={
+                                                                                star <= review.rating
+                                                                                    ? "text-amber-400"
+                                                                                    : "text-slate-300"
+                                                                            }
+                                                                        >
+                                                                            ★
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+
+                                                            <span className="text-[10px] font-bold text-slate-400">
+                                                                {review.date}
+                                                            </span>
+
+                                                        </div>
+
+                                                        <p className="text-sm text-slate-600 mt-3">
+                                                            {review.review}
+                                                        </p>
+
+                                                    </div>
+
+                                                ))}
+
+                                            </div>
+
                                         </div>
+
+
+                                        {/* ================= ALL SERVICES ================= */}
+                                        <div className="bg-white rounded-[2rem] shadow-lg border border-indigo-100 p-6">
+
+                                            <h4 className="text-xl font-black text-indigo-700 mb-5 flex items-center gap-2 border-b pb-3">
+                                                <List size={22} />
+                                                All Services ({businessServices.length})
+                                            </h4>
+
+                                            {servicesLoading ? (
+                                                <div className="flex justify-center items-center py-10">
+                                                    <Loader2
+                                                        className="animate-spin text-indigo-500"
+                                                        size={30}
+                                                    />
+                                                </div>
+                                            ) : businessServices.length === 0 ? (
+
+                                                <p className="text-center text-slate-500 font-medium italic py-10">
+                                                    No services listed for this business yet.
+                                                </p>
+
+                                            ) : (
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                                                    {businessServices.map(service => (
+
+                                                        <div
+                                                            key={service._id}
+                                                            className="border border-slate-200 rounded-xl p-5 hover:shadow-md transition-shadow bg-slate-50"
+                                                        >
+
+                                                            <h5 className="text-lg font-bold text-slate-800 mb-1">
+                                                                {service.serviceTitle}
+                                                            </h5>
+
+                                                            <p className="text-sm text-slate-600 mb-3 line-clamp-2">
+                                                                {service.serviceDetails}
+                                                            </p>
+
+                                                            {service.serviceImages?.[0] && (
+                                                                <img
+                                                                    src={service.serviceImages[0]}
+                                                                    alt={service.serviceTitle}
+                                                                    className="w-full h-32 object-cover rounded-lg mb-3 border border-slate-100"
+                                                                />
+                                                            )}
+
+                                                            <p className="text-[10px] text-indigo-500 font-semibold">
+                                                                Images: {service.serviceImages?.length || 0}
+                                                            </p>
+
+                                                        </div>
+
+                                                    ))}
+
+                                                </div>
+
+                                            )}
+
+                                        </div>
+
                                     </div>
                                 ) : null
                             )}

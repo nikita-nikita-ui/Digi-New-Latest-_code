@@ -317,6 +317,7 @@ export const getAllUsersAPI = async (page = 1, limit = 10, type = "all") =>
     throw error;
   }
 };
+
 export const updateUserStatusAPI = async (id, status) => {
   try {
     const adminId = localStorage.getItem("id");
@@ -1291,29 +1292,29 @@ export const getAllUserCitiesAPI = async () => {
   }
 };
 
-export const getUsersForNotificationAPI = async () => {
-  try {
-    const token = localStorage.getItem("token");
+// export const getUsersForNotificationAPI = async () => {
+//   try {
+//     const token = localStorage.getItem("token");
 
-    const response = await apiClient.get(
-      "/admin/users/users-for-notification",
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+//     const response = await apiClient.get(
+//       "/admin/users/users-for-notification",
+//       {
+//         headers: {
+//           Authorization: `Bearer ${token}`,
+//         },
+//       }
+//     );
 
-    return response.data;
+//     return response.data;
 
-  } catch (error) {
-    console.error("GET USERS FOR NOTIFICATION ERROR:", error);
+//   } catch (error) {
+//     console.error("GET USERS FOR NOTIFICATION ERROR:", error);
 
-    throw error.response
-      ? error.response.data
-      : new Error("Network Error");
-  }
-};
+//     throw error.response
+//       ? error.response.data
+//       : new Error("Network Error");
+//   }
+// };
 
 export const updateFullTimeJobStatus = async (id, status) => {
   try {

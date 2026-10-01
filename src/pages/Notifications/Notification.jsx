@@ -5,13 +5,15 @@ import { Bell, MapPin, Users, Globe } from "lucide-react";
 import {
   GsendNotificationAPI,
   getAllUserCitiesAPI,
-  getUsersForNotificationAPI,
+  getLocalJobUsers,
 } from "../../auth/adminLogin";
 
 const Notify = () => {
   const [activeTab, setActiveTab] = useState("notifications");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isUserListOpen, setIsUserListOpen] = useState(false);
+  const [audience, setAudience] = useState("Global");
+  const [scheduledAt, setScheduledAt] = useState("");
   const tabs = [
     {
       id: "notifications",
@@ -37,11 +39,10 @@ const Notify = () => {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-all duration-200
-              ${
-                activeTab === tab.id
+              ${activeTab === tab.id
                   ? "bg-slate-900 text-white shadow-lg shadow-slate-900/20"
                   : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50"
-              }`}
+                }`}
             >
               {tab.icon}
               {tab.label}
@@ -59,13 +60,14 @@ const Notify = () => {
 
 const PushNotificationsView = () => {
   const [audience, setAudience] = useState("Global");
-
+  const [isScheduled, setIsScheduled] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState("");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-
+  const [imageUrl, setImageUrl] = useState("");
   const [cities, setCities] = useState([]);
   const [selectedCity, setSelectedCity] = useState("");
-
+  const [targetValue, setTargetValue] = useState("");
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState("");
   const [isUserListOpen, setIsUserListOpen] = useState(false);
@@ -97,7 +99,7 @@ const PushNotificationsView = () => {
     try {
       console.log("fetchUsers called");
 
-      const response = await getUsersForNotificationAPI();
+      const response = await getLocalJobUsers();
 
       console.log("USERS RESPONSE =", response);
 
@@ -127,7 +129,18 @@ const PushNotificationsView = () => {
         toast.error("Please enter message");
         return;
       }
+      if (isScheduled && !scheduledAt) {
+        toast.error("Please select scheduled date and time");
+        return;
+      }
 
+      if (
+        isScheduled &&
+        new Date(scheduledAt) <= new Date()
+      ) {
+        toast.error("Please select a future date and time");
+        return;
+      }
       if (audience === "City-based" && !selectedCity) {
         toast.error("Please select city");
         return;
@@ -137,26 +150,48 @@ const PushNotificationsView = () => {
         toast.error("Please select user");
         return;
       }
-
       const payload = {
+        targetType:
+          audience === "Blood Group"
+            ? "BLOOD_GROUP"
+            : audience === "Gender"
+              ? "GENDER"
+              : audience === "General User"
+                ? "USER_TYPE"
+                : audience === "Service Provider"
+                  ? "USER_TYPE"
+                  : audience === "Business Shops"
+                    ? "BUSINESS_SHOPS"
+                    : audience === "Specific User"
+                      ? "USER"
+                      : audience === "City-based"
+                        ? "CITY"
+                        : "GLOBAL",
+
+        ...(audience !== "Global" && {
+          targetValue:
+            audience === "Blood Group"
+              ? targetValue
+              : audience === "Gender"
+                ? targetValue
+                : audience === "General User"
+                  ? "GENERAL_USER"
+                  : audience === "Service Provider"
+                    ? "SERVICE_PROVIDER"
+                    : audience === "Specific User"
+                      ? selectedUser
+                      : audience === "City-based"
+                        ? selectedCity
+                        : "",
+        }),
+
         title,
         body,
-
-        targetType:
-          audience === "Global"
-            ? "GLOBAL"
-            : audience === "City-based"
-              ? "CITY"
-              : "USER",
-
-        targetValue:
-          audience === "City-based"
-            ? selectedCity
-            : audience === "Specific User"
-              ? selectedUser
-              : undefined,
+        ...(isScheduled && {
+          scheduledAt: new Date(scheduledAt).toISOString(),
+        }),
+        imageUrl,
       };
-
       console.log("SELECTED USER =", selectedUser);
 
       console.log("FINAL PAYLOAD =", payload);
@@ -171,6 +206,8 @@ const PushNotificationsView = () => {
 
       setTitle("");
       setBody("");
+      setImageUrl("");
+      setTargetValue("");
       setSelectedCity("");
       setSelectedUser("");
     } catch (error) {
@@ -178,15 +215,15 @@ const PushNotificationsView = () => {
 
       toast.error(
         error?.message ||
-          error?.response?.data?.message ||
-          "Failed to send notification",
+        error?.response?.data?.message ||
+        "Failed to send notification",
       );
     }
   };
 
   return (
     <div className="p-8">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div className="grid grid-cols-1 gap-8 w-full">
         {/* LEFT SECTION */}
 
         <div className="lg:col-span-2 space-y-6">
@@ -199,11 +236,16 @@ const PushNotificationsView = () => {
             {/* AUDIENCE */}
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label className="block text-lg font-bold text-slate-900 mb-2">
                 Target Audience
               </label>
-
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <SelectionCard
+                  icon={<Bell size={18} />}
+                  label="Scheduled"
+                  active={isScheduled}
+                  onClick={() => setIsScheduled(!isScheduled)}
+                />
                 <SelectionCard
                   icon={<Globe size={18} />}
                   label="Global"
@@ -211,9 +253,11 @@ const PushNotificationsView = () => {
                   onClick={() => setAudience("Global")}
                 />
 
+
+
                 <SelectionCard
                   icon={<MapPin size={18} />}
-                  label="City-based"
+                  label="City"
                   active={audience === "City-based"}
                   onClick={() => setAudience("City-based")}
                 />
@@ -224,6 +268,42 @@ const PushNotificationsView = () => {
                   active={audience === "Specific User"}
                   onClick={() => setAudience("Specific User")}
                 />
+
+                <SelectionCard
+                  icon={<Users size={18} />}
+                  label="Blood Group"
+                  active={audience === "Blood Group"}
+                  onClick={() => setAudience("Blood Group")}
+                />
+
+                <SelectionCard
+                  icon={<Users size={18} />}
+                  label="Gender"
+                  active={audience === "Gender"}
+                  onClick={() => setAudience("Gender")}
+                />
+
+                <SelectionCard
+                  icon={<Users size={18} />}
+                  label="General User"
+                  active={audience === "General User"}
+                  onClick={() => setAudience("General User")}
+                />
+
+                <SelectionCard
+                  icon={<Users size={18} />}
+                  label="Service Provider"
+                  active={audience === "Service Provider"}
+                  onClick={() => setAudience("Service Provider")}
+                />
+
+                <SelectionCard
+                  icon={<Users size={18} />}
+                  label="Business Shops"
+                  active={audience === "Business Shops"}
+                  onClick={() => setAudience("Business Shops")}
+                />
+
               </div>
             </div>
 
@@ -253,11 +333,10 @@ const PushNotificationsView = () => {
                             setSelectedCity(city);
                             setIsCityListOpen(false); // Closes dropdown
                           }}
-                          className={`p-2 text-sm cursor-pointer rounded-md ${
-                            selectedCity === city
-                              ? "bg-blue-100 text-blue-700"
-                              : "hover:bg-slate-100"
-                          }`}
+                          className={`p-2 text-sm cursor-pointer rounded-md ${selectedCity === city
+                            ? "bg-blue-100 text-blue-700"
+                            : "hover:bg-slate-100"
+                            }`}
                         >
                           {city}
                         </div>
@@ -279,20 +358,20 @@ const PushNotificationsView = () => {
                   Select User
                 </label>
 
-                {/* This acts like a dropdown trigger */}
+
                 <div
                   onClick={() => setIsUserListOpen(!isUserListOpen)}
                   className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-sm cursor-pointer flex justify-between items-center"
                 >
                   {selectedUser
                     ? users.find(
-                        (u) => (u._id || u.id || u.userId) === selectedUser,
-                      )?.fullName || "User Selected"
+                      (u) => (u._id || u.id || u.userId) === selectedUser,
+                    )?.fullName || "User Selected"
                     : "Select a user..."}
                   <span>{isUserListOpen ? "▲" : "▼"}</span>
                 </div>
 
-                {/* This is the list that closes automatically */}
+
                 {isUserListOpen && (
                   <div className="absolute z-10 w-full h-32 mt-1 overflow-y-auto border border-slate-200 rounded-lg bg-white p-1 shadow-lg">
                     {users.length > 0 ? (
@@ -311,11 +390,10 @@ const PushNotificationsView = () => {
                               setSelectedUser(userId);
                               setIsUserListOpen(false); // <--- THIS CLOSES THE LIST
                             }}
-                            className={`p-2 text-sm cursor-pointer rounded-md ${
-                              selectedUser === userId
-                                ? "bg-blue-100 text-blue-700"
-                                : "hover:bg-slate-100"
-                            }`}
+                            className={`p-2 text-sm cursor-pointer rounded-md ${selectedUser === userId
+                              ? "bg-blue-100 text-blue-700"
+                              : "hover:bg-slate-100"
+                              }`}
                           >
                             {userName}
                           </div>
@@ -333,8 +411,150 @@ const PushNotificationsView = () => {
 
             {/* TITLE */}
 
+
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-base font-bold text-slate-900 mb-2">
+                Target Type
+              </label>
+              <select
+                value={
+                  audience === "Global"
+                    ? "GLOBAL"
+                    : audience === "City-based"
+                      ? "CITY"
+                      : audience === "Specific User"
+                        ? "USER"
+                        : audience === "Blood Group"
+                          ? "BLOOD_GROUP"
+                          : audience === "Gender"
+                            ? "GENDER"
+                            : audience === "General User"
+                              ? "USER_TYPE_GENERAL"
+                              : audience === "Service Provider"
+                                ? "USER_TYPE_SERVICE"
+                                : audience === "Business Shops"
+                                  ? "BUSINESS_SHOPS"
+                                  : ""
+                }
+                onChange={(e) => {
+                  const value = e.target.value;
+
+                  if (value === "GLOBAL") setAudience("Global");
+                  else if (value === "CITY") setAudience("City-based");
+                  else if (value === "USER") setAudience("Specific User");
+                  else if (value === "BLOOD_GROUP") setAudience("Blood Group");
+                  else if (value === "GENDER") setAudience("Gender");
+                  else if (value === "USER_TYPE_GENERAL") setAudience("General User");
+                  else if (value === "USER_TYPE_SERVICE") setAudience("Service Provider");
+                  else if (value === "BUSINESS_SHOPS") setAudience("Business Shops");
+                }}
+                className="w-full p-2.5 border border-slate-200 rounded-lg"
+              >
+                <option value="BLOOD_GROUP">Blood Group</option>
+                <option value="GENDER">Gender</option>
+                <option value="USER_TYPE_GENERAL">General User</option>
+                <option value="USER_TYPE_SERVICE">Service Provider</option>
+                <option value="BUSINESS_SHOPS">Business Shops</option>
+                <option value="USER">Single User</option>
+                <option value="CITY">City</option>
+                <option value="GLOBAL">Global</option>
+              </select>
+            </div>
+
+            {/* TARGET VALUE */}
+            {isScheduled && (
+              <div>
+                <label className="block text-base font-bold text-slate-900 mb-2">
+                  Scheduled At
+                </label>
+
+                <input
+                  type="datetime-local"
+                  value={scheduledAt}
+                  min={new Date().toISOString().slice(0, 16)}
+                  onChange={(e) => {
+                    setScheduledAt(e.target.value);
+                    e.target.blur(); // calendar/time picker close
+                  }}
+                  className="w-full p-2.5 border border-slate-200 rounded-lg"
+                />
+              </div>
+            )}
+            {audience !== "Global" && audience !== "Business Shops" && (
+              <div>
+                <label className="block text-base font-bold text-slate-900 mb-2">
+                  Target Value
+                </label>
+
+                {audience === "Blood Group" ? (
+                  <select
+                    value={targetValue}
+                    onChange={(e) => setTargetValue(e.target.value)}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg"
+                  >
+                    <option value="">Select Blood Group</option>
+                    <option value="A+">A+</option>
+                    <option value="A-">A-</option>
+                    <option value="B+">B+</option>
+                    <option value="B-">B-</option>
+                    <option value="AB+">AB+</option>
+                    <option value="AB-">AB-</option>
+                    <option value="O+">O+</option>
+                    <option value="O-">O-</option>
+                  </select>
+                ) : audience === "Gender" ? (
+                  <select
+                    value={targetValue}
+                    onChange={(e) => setTargetValue(e.target.value)}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg"
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                ) : audience === "General User" ? (
+                  <input
+                    type="text"
+                    value="GENERAL_USER"
+                    readOnly
+                    className="w-full p-2.5 border border-slate-200 rounded-lg bg-slate-50"
+                  />
+                ) : audience === "Service Provider" ? (
+                  <input
+                    type="text"
+                    value="SERVICE_PROVIDER"
+                    readOnly
+                    className="w-full p-2.5 border border-slate-200 rounded-lg bg-slate-50"
+                  />
+                ) : audience === "City-based" ? (
+                  <input
+                    type="text"
+                    value={selectedCity}
+                    readOnly
+                    className="w-full p-2.5 border border-slate-200 rounded-lg bg-slate-50"
+                    placeholder="Select city"
+                  />
+                ) : audience === "Specific User" ? (
+                  <input
+                    type="text"
+                    value={
+                      users.find(
+                        (u) => (u._id || u.id || u.userId) === selectedUser
+                      )?.fullName || ""
+                    }
+                    readOnly
+                    className="w-full p-2.5 border border-slate-200 rounded-lg bg-slate-50"
+                    placeholder="Select user"
+                  />
+                ) : null}
+              </div>
+            )}
+
+            {/* TITLE */}
+
+            <div>
+              <label className="block text-base font-bold text-slate-900 mb-2">
                 Notification Title
               </label>
 
@@ -347,10 +567,29 @@ const PushNotificationsView = () => {
               />
             </div>
 
+
+
+            {/* IMAGE URL */}
+
+            <div>
+              <label className="block text-base font-bold text-slate-900 mb-2">
+                Image URL
+              </label>
+              <input
+                type="text"
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                className="w-full p-2.5 border border-slate-200 rounded-lg"
+                placeholder="Enter image URL"
+              />
+            </div>
+
+
+
             {/* BODY */}
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-base font-bold text-slate-900 mb-2">
                 Message Body
               </label>
 
@@ -374,29 +613,7 @@ const PushNotificationsView = () => {
           </div>
         </div>
 
-        {/* RIGHT SECTION */}
-
-        <div className="bg-slate-50 rounded-xl p-6 border border-slate-100">
-          <h3 className="font-bold text-slate-700 mb-4">Live Preview</h3>
-
-          <div className="border border-slate-200 bg-white rounded-2xl p-4 shadow-sm max-w-[300px] mx-auto">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white">
-                <Bell size={20} />
-              </div>
-
-              <div>
-                <h4 className="font-semibold text-sm text-slate-900">
-                  {title || "Notification Title"}
-                </h4>
-
-                <p className="text-xs text-slate-500 mt-1">
-                  {body || "Notification message preview"}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+      
       </div>
     </div>
   );
@@ -408,11 +625,10 @@ const SelectionCard = ({ icon, label, active, onClick }) => (
   <div
     onClick={onClick}
     className={`flex flex-col items-center justify-center p-3 rounded-lg border cursor-pointer transition-all
-    ${
-      active
+    ${active
         ? "border-blue-600 bg-blue-50 text-blue-700"
         : "border-slate-200 hover:border-blue-300 text-slate-600"
-    }`}
+      }`}
   >
     {icon}
 

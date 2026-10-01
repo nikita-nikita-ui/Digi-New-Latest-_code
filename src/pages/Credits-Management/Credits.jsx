@@ -30,6 +30,24 @@ import {
 const Credits = () => {
   const [activeTab, setActiveTab] = useState("plans");
   const [plans, setPlans] = useState([]);
+
+  const subscriptionPlans = plans.filter(
+    (plan) => plan.category === "SUBSCRIPTION"
+  );
+
+  const totalRevenue = subscriptionPlans.reduce(
+    (total, plan) => total + Number(plan.price || 0),
+    0
+  );
+
+  const totalCreditsSold = plans
+    .filter((plan) => plan.category === "CREDIT")
+    .reduce(
+      (total, plan) => total + Number(plan.credits || 0),
+      0
+    );
+
+ 
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -67,7 +85,6 @@ const Credits = () => {
       setLoading(false);
     }
   };
-
   const handleSearch = async (value) => {
     try {
       setSearchTerm(value);
@@ -113,9 +130,8 @@ const Credits = () => {
 
     return (
       <span
-        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${
-          styles[status] || "bg-slate-50 text-slate-500 border-slate-100"
-        }`}
+        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${styles[status] || "bg-slate-50 text-slate-500 border-slate-100"
+          }`}
       >
         {status}
       </span>
@@ -134,8 +150,79 @@ const Credits = () => {
           </p>
         </div>
       </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-6">
 
+        {/* Total Subscriptions */}
+        <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl p-5 text-white shadow-lg">
+          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-100">
+            Total Subscriptions
+          </p>
+
+          <h2 className="text-3xl font-bold mt-3">
+            {subscriptionPlans.length}
+          </h2>
+
+          <p className="text-xs text-indigo-100 mt-2">
+            Active subscription plans
+          </p>
+
+          <CreditCard className="mt-4 opacity-70" size={22} />
+        </div>
+
+        {/* Revenue */}
+        <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-5 text-white shadow-lg">
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-100">
+            Total Revenue
+          </p>
+
+          <h2 className="text-3xl font-bold mt-3">
+            ₹{totalRevenue.toLocaleString("en-IN")}
+          </h2>
+
+          <p className="text-xs text-emerald-100 mt-2">
+            Revenue from subscription plans
+          </p>
+
+          <DollarSign className="mt-4 opacity-70" size={22} />
+        </div>
+
+        {/* Credits Sold */}
+        <div className="bg-gradient-to-br from-orange-500 to-amber-600 rounded-2xl p-5 text-white shadow-lg">
+          <p className="text-xs font-semibold uppercase tracking-wide text-orange-100">
+            Total Credits Sold
+          </p>
+
+          <h2 className="text-3xl font-bold mt-3">
+            {totalCreditsSold.toLocaleString("en-IN")}
+          </h2>
+
+          <p className="text-xs text-orange-100 mt-2">
+            Credits from credit plans
+          </p>
+
+          <Coins className="mt-4 opacity-70" size={22} />
+        </div>
+
+        {/* Total Plans */}
+        <div className="bg-gradient-to-br from-pink-500 to-rose-600 rounded-2xl p-5 text-white shadow-lg">
+          <p className="text-xs font-semibold uppercase tracking-wide text-pink-100">
+            Total Plans
+          </p>
+
+          <h2 className="text-3xl font-bold mt-3">
+            {plans.length}
+          </h2>
+
+          <p className="text-xs text-pink-100 mt-2">
+            Subscription + Credit plans
+          </p>
+
+          <BarChart3 className="mt-4 opacity-70" size={22} />
+        </div>
+
+      </div>
       {activeTab === "plans" && (
+
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="p-5 flex flex-col sm:flex-row gap-4 justify-between items-stretch sm:items-center bg-white">
             <div className="relative flex-1 max-w-md">
@@ -283,11 +370,10 @@ const Credits = () => {
                 <button
                   key={i + 1}
                   onClick={() => fetchPlans(i + 1)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 border ${
-                    currentPage === i + 1
-                      ? "bg-indigo-600 text-white border-transparent shadow-sm"
-                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                  }`}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 border ${currentPage === i + 1
+                    ? "bg-indigo-600 text-white border-transparent shadow-sm"
+                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                    }`}
                 >
                   {i + 1}
                 </button>

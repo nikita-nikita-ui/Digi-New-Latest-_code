@@ -1,5 +1,5 @@
-import React from "react";
-import { X, Compass } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { X, Compass, CheckCircle2, AlertCircle } from "lucide-react";
 
 const AddMarketplaceItemModal = ({
     isAddModalOpen,
@@ -12,10 +12,19 @@ const AddMarketplaceItemModal = ({
     loadingCategories, users,
     loadingUsers,
 }) => {
+    const [toast, setToast] = useState(null); // { type: 'success' | 'error', message: string }
+    const [fetchingLocation, setFetchingLocation] = useState(false);
+
+    // Auto-hide toast after 3 seconds
+    useEffect(() => {
+        if (!toast) return;
+        const timer = setTimeout(() => setToast(null), 3000);
+        return () => clearTimeout(timer);
+    }, [toast]);
+
     if (!isAddModalOpen) {
         return null;
     }
-
 
     const handleChange = (field, value) => {
         setNewItem((prev) => ({
@@ -25,10 +34,74 @@ const AddMarketplaceItemModal = ({
     };
 
     // ============================================================
-    // HANDLE LOCATION
+    // HANDLE LOCATION + COORDINATES (address + lat/long dono)
     // ============================================================
     const handleLocation = () => {
-        getCurrentLocation(setNewItem);
+        if (!navigator.geolocation) {
+            setToast({ type: "error", message: "Geolocation is not supported by your browser." });
+            return;
+        }
+
+        setFetchingLocation(true);
+
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                const { latitude, longitude } = position.coords;
+
+                // update coordinates immediately
+                setNewItem((prev) => ({
+                    ...prev,
+                    location: {
+                        ...(prev.location || {}),
+                        coordinates: [longitude, latitude],
+                    },
+                }));
+
+                // try to get readable address via reverse geocoding
+                try {
+                    const res = await fetch(
+                        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+                    );
+                    const data = await res.json();
+                    const address = data?.display_name || "";
+
+                    setNewItem((prev) => ({
+                        ...prev,
+                        location: {
+                            ...(prev.location || {}),
+                            coordinates: [longitude, latitude],
+                            address: address || prev.location?.address || "",
+                        },
+                    }));
+
+                    setToast({
+                        type: "success",
+                        message: "Location, address and coordinates fetched successfully!",
+                    });
+                } catch (err) {
+                    // even if address fetch fails, coordinates are already set
+                    setToast({
+                        type: "success",
+                        message: "Coordinates fetched. Address lookup failed, please enter manually.",
+                    });
+                } finally {
+                    setFetchingLocation(false);
+                }
+
+                // agar parent se bhi getCurrentLocation function pass hua ho, use bhi call kar do
+                if (typeof getCurrentLocation === "function") {
+                    getCurrentLocation(setNewItem);
+                }
+            },
+            (error) => {
+                setFetchingLocation(false);
+                setToast({
+                    type: "error",
+                    message: "Unable to fetch location. Please allow location access.",
+                });
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
     };
 
     // ============================================================
@@ -44,7 +117,27 @@ const AddMarketplaceItemModal = ({
             {/* ========================================================
           MODAL CONTAINER
       ======================================================== */}
-            <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden border border-slate-100">
+            <div className="relative bg-white rounded-[32px] shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden border border-slate-100">
+
+                {/* ======================================================
+            TOAST (top of popup)
+        ====================================================== */}
+                {toast && (
+                    <div
+                        className={`absolute top-3 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-lg text-xs font-bold border w-[90%] justify-center animate-in fade-in slide-in-from-top-2 ${
+                            toast.type === "success"
+                                ? "bg-green-50 border-green-200 text-green-700"
+                                : "bg-red-50 border-red-200 text-red-700"
+                        }`}
+                    >
+                        {toast.type === "success" ? (
+                            <CheckCircle2 size={15} />
+                        ) : (
+                            <AlertCircle size={15} />
+                        )}
+                        <span>{toast.message}</span>
+                    </div>
+                )}
 
                 {/* ======================================================
             HEADER
@@ -93,8 +186,6 @@ const AddMarketplaceItemModal = ({
                         />
                     </div>
 
-
-
                     <div className="mb-4">
                         <label className="block text-[11px] font-bold text-slate-600 mb-2">
                             Details
@@ -138,14 +229,7 @@ const AddMarketplaceItemModal = ({
                                 value={newItem?.category || ""}
                                 onChange={(e) => {
                                     const categoryId = e.target.value;
-
-                                    const selectedCategory = categories?.find(
-                                        (category) => category._id === categoryId
-                                    );
-
                                     handleChange("category", categoryId);
-
-                                    // Category change hote hi subcategory reset
                                     handleChange("subCategory", "");
                                 }}
                                 disabled={loadingCategories}
@@ -224,16 +308,19 @@ const AddMarketplaceItemModal = ({
                     </div>
 
                     {/* ====================================================
-              FETCH CURRENT LOCATION
+              FETCH CURRENT LOCATION + COORDINATES
           ==================================================== */}
                     <div className="mb-4">
                         <button
                             type="button"
                             onClick={handleLocation}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold text-xs border border-indigo-100 transition-all duration-200"
+                            disabled={fetchingLocation}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 disabled:opacity-60 text-indigo-600 font-bold text-xs border border-indigo-100 transition-all duration-200"
                         >
-                            <Compass size={15} />
-                            Fetch Current Coordinates
+                            <Compass size={15} className={fetchingLocation ? "animate-spin" : ""} />
+                            {fetchingLocation
+                                ? "Fetching location..."
+                                : "Fetch Current Location & Coordinates"}
                         </button>
                     </div>
 
@@ -308,8 +395,6 @@ const AddMarketplaceItemModal = ({
                         </label>
 
                         <div className="flex items-center gap-6">
-
-                            {/* CALL */}
                             <label className="flex items-center gap-2 cursor-pointer">
                                 <input
                                     type="checkbox"
@@ -327,13 +412,11 @@ const AddMarketplaceItemModal = ({
                                     }
                                     className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                                 />
-
                                 <span className="text-sm font-medium text-slate-700">
                                     Call
                                 </span>
                             </label>
 
-                            {/* CHAT */}
                             <label className="flex items-center gap-2 cursor-pointer">
                                 <input
                                     type="checkbox"
@@ -351,12 +434,10 @@ const AddMarketplaceItemModal = ({
                                     }
                                     className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                                 />
-
                                 <span className="text-sm font-medium text-slate-700">
                                     Chat
                                 </span>
                             </label>
-
                         </div>
                     </div>
 
@@ -382,13 +463,8 @@ const AddMarketplaceItemModal = ({
                             }
                             className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all"
                         >
-                            <option value="true">
-                                Active
-                            </option>
-
-                            <option value="false">
-                                Inactive
-                            </option>
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
                         </select>
                     </div>
 
@@ -414,13 +490,8 @@ const AddMarketplaceItemModal = ({
                             }
                             className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all"
                         >
-                            <option value="false">
-                                Normal Listing
-                            </option>
-
-                            <option value="true">
-                                Featured Listing
-                            </option>
+                            <option value="false">Normal Listing</option>
+                            <option value="true">Featured Listing</option>
                         </select>
                     </div>
 
@@ -455,8 +526,6 @@ const AddMarketplaceItemModal = ({
             FOOTER
         ====================================================== */}
                 <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/70 flex items-center justify-end gap-3">
-
-                    {/* DISCARD */}
                     <button
                         type="button"
                         onClick={handleClose}
@@ -465,7 +534,6 @@ const AddMarketplaceItemModal = ({
                         Discard
                     </button>
 
-                    {/* REGISTER */}
                     <button
                         type="button"
                         onClick={handleCreateItem}
@@ -473,7 +541,6 @@ const AddMarketplaceItemModal = ({
                     >
                         Register Entry
                     </button>
-
                 </div>
 
             </div>

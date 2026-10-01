@@ -323,76 +323,137 @@ const AllUsersContent = () => {
         }
       `}
       </style>
-<div className="p-6 bg-white rounded-lg shadow-md w-full min-h-screen">        <h1 className="text-2xl font-bold mb-2">All Users</h1>
+<div className="p-6 bg-white rounded-lg shadow-md w-full min-h-screen">      
+    <h1 className="text-2xl font-bold mb-2">All Users</h1>
         <p className="text-gray-500 mb-8">
           Manage all registered users on the platform.
         </p>
 
-        <Space wrap style={{ marginBottom: 30, marginTop: 10 }}>
-          <Button
-            type={roleFilter === null ? "primary" : "default"}
-            onClick={() => setRoleFilter(null)}
-            style={{
-              borderRadius: 20,
-              background: roleFilter === null ? "#4a69bd" : "",
-            }}
-          >
-            All Users
-          </Button>
-          <Button
-            type={roleFilter === "SERVICE_PROVIDER" ? "primary" : "default"}
-            onClick={() => setRoleFilter("SERVICE_PROVIDER")}
-            style={{
-              borderRadius: 20,
-              background: roleFilter === "SERVICE_PROVIDER" ? "#4a69bd" : "",
-            }}
-          >
-            Service Provider
-          </Button>
-          <Button
-            type={roleFilter === "GENERAL_USER" ? "primary" : "default"}
-            onClick={() => setRoleFilter("GENERAL_USER")}
-            style={{
-              borderRadius: 20,
-              background: roleFilter === "GENERAL_USER" ? "#4a69bd" : "",
-            }}
-          >
-            General User
-          </Button>
-          <Button
-            type={roleFilter === "BUSINESS_SHOPS" ? "primary" : "default"}
-            onClick={() => setRoleFilter("BUSINESS_SHOPS")}
-            style={{
-              borderRadius: 20,
-              background: roleFilter === "BUSINESS_SHOPS" ? "#4a69bd" : "",
-            }}
-          >
-            Business/Shop
-          </Button>
+      <Space
+  wrap
+  size={[10, 12]}
+  style={{
+    marginBottom: 30,
+    marginTop: 10,
+    width: "100%",
+  }}
+>
+  <Button
+    type={roleFilter === null ? "primary" : "default"}
+    onClick={() => setRoleFilter(null)}
+    style={{
+      height: 40,
+      padding: "0 18px",
+      borderRadius: 10,
+      fontWeight: 500,
+      background: roleFilter === null ? "#4a69bd" : "#fff",
+      color: roleFilter === null ? "#fff" : "#475569",
+      borderColor: roleFilter === null ? "#4a69bd" : "#d1d5db",
+      boxShadow: roleFilter === null ? "0 3px 8px rgba(74,105,189,0.25)" : "none",
+    }}
+  >
+    All Users
+  </Button>
 
-        
+  <Button
+    type={roleFilter === "SERVICE_PROVIDER" ? "primary" : "default"}
+    onClick={() => setRoleFilter("SERVICE_PROVIDER")}
+    style={{
+      height: 40,
+      padding: "0 18px",
+      borderRadius: 10,
+      fontWeight: 500,
+      background: roleFilter === "SERVICE_PROVIDER" ? "#4a69bd" : "#fff",
+      color: roleFilter === "SERVICE_PROVIDER" ? "#fff" : "#475569",
+      borderColor:
+        roleFilter === "SERVICE_PROVIDER" ? "#4a69bd" : "#d1d5db",
+    }}
+  >
+    Service Provider
+  </Button>
 
-          <Select
-            placeholder="Gender"
-            allowClear
-            style={{ width: 140 }}
-            value={genderFilter}
-            onChange={(value) => setGenderFilter(value || null)}
-            options={genderOptions.map((g) => ({
-              label: g.charAt(0).toUpperCase() + g.slice(1),
-              value: g,
-            }))}
-          />
+  <Button
+    type={roleFilter === "GENERAL_USER" ? "primary" : "default"}
+    onClick={() => setRoleFilter("GENERAL_USER")}
+    style={{
+      height: 40,
+      padding: "0 18px",
+      borderRadius: 10,
+      fontWeight: 500,
+      background: roleFilter === "GENERAL_USER" ? "#4a69bd" : "#fff",
+      color: roleFilter === "GENERAL_USER" ? "#fff" : "#475569",
+      borderColor:
+        roleFilter === "GENERAL_USER" ? "#4a69bd" : "#d1d5db",
+    }}
+  >
+    General User
+  </Button>
 
-          <Select
-            placeholder="Location"
-            allowClear
-            style={{ width: 160 }}
-            value={locationFilter}
-            onChange={(value) => setLocationFilter(value || null)}
-            options={locationOptions.map((l) => ({ label: l, value: l }))}
-          />
-        </Space>
+  <Button
+    type={roleFilter === "BUSINESS_SHOPS" ? "primary" : "default"}
+    onClick={() => setRoleFilter("BUSINESS_SHOPS")}
+    style={{
+      height: 40,
+      padding: "0 18px",
+      borderRadius: 10,
+      fontWeight: 500,
+      background: roleFilter === "BUSINESS_SHOPS" ? "#4a69bd" : "#fff",
+      color: roleFilter === "BUSINESS_SHOPS" ? "#fff" : "#475569",
+      borderColor:
+        roleFilter === "BUSINESS_SHOPS" ? "#4a69bd" : "#d1d5db",
+    }}
+  >
+    Business/Shop
+  </Button>
+
+  {/* Gender Filter */}
+  <Select
+    placeholder="Gender"
+    allowClear
+    prefix={<UserOutlined style={{ color: "#64748b" }} />}
+    style={{
+      width: 155,
+      height: 40,
+    }}
+    value={genderFilter}
+    onChange={(value) => setGenderFilter(value || null)}
+    options={genderOptions.map((g) => ({
+      label: g.charAt(0).toUpperCase() + g.slice(1),
+      value: g,
+    }))}
+    styles={{
+      selector: {
+        borderRadius: 10,
+        border: "1px solid #cbd5e1",
+        boxShadow: "none",
+      },
+    }}
+  />
+
+  {/* Location Filter */}
+  <Select
+    placeholder="Location"
+    allowClear
+    prefix={<span style={{ color: "#64748b", fontSize: 16 }}>⌖</span>}
+    style={{
+      width: 175,
+      height: 40,
+    }}
+    value={locationFilter}
+    onChange={(value) => setLocationFilter(value || null)}
+    options={locationOptions.map((l) => ({
+      label: l,
+      value: l,
+    }))}
+    styles={{
+      selector: {
+        borderRadius: 10,
+        border: "1px solid #cbd5e1",
+        boxShadow: "none",
+      },
+    }}
+  />
+</Space>
 
         <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-200">
           <Space>

@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import {
-    Modal, Form, Input, Select, Radio, Button, message, Upload, Avatar, 
+    Modal, Form, Input, Select, Radio, Button, message, Upload, Avatar,
     InputNumber, Switch, Row, Col
 } from 'antd';
 import { UserOutlined, UploadOutlined, EnvironmentOutlined } from '@ant-design/icons';
 import defaultUserImage from "../../assets/dummy.png";
-import { createAdminUser } from '../../auth/apiAddUser'; 
+import { createAdminUser } from '../../auth/apiAddUser';
 
 const { Option } = Select;
 
@@ -102,7 +102,7 @@ const AddUserFormModal = ({ visible, onClose, onSuccess }) => {
             }
 
             const response = await createAdminUser(formData);
-            
+
             if (response && (response.success || response.user)) {
                 message.success('User created successfully!');
                 onSuccess();
@@ -125,8 +125,17 @@ const AddUserFormModal = ({ visible, onClose, onSuccess }) => {
     };
 
     return (
+
         <Modal
+            className="add-user-modal-scroll"
             title={<div className="text-xl font-bold text-slate-800 text-center">Add New User</div>}
+            styles={{
+                body: {
+                    maxHeight: '65vh',
+                    overflowY: 'auto',
+                    paddingRight: '8px',
+                },
+            }}
             open={visible}
             onCancel={handleCancel}
             footer={[
@@ -157,11 +166,11 @@ const AddUserFormModal = ({ visible, onClose, onSuccess }) => {
                 <Form.Item name="longitude" hidden><Input /></Form.Item>
 
                 <div className="flex flex-col items-center mb-6">
-                    <Avatar 
-                        size={100} 
-                        src={avatarUrl} 
-                        icon={<UserOutlined />} 
-                        className="mb-3 border-2 border-slate-200 shadow-md transition-transform hover:scale-105" 
+                    <Avatar
+                        size={100}
+                        src={avatarUrl}
+                        icon={<UserOutlined />}
+                        className="mb-3 border-2 border-slate-200 shadow-md transition-transform hover:scale-105"
                     />
                     <Upload
                         showUploadList={false}
@@ -221,7 +230,7 @@ const AddUserFormModal = ({ visible, onClose, onSuccess }) => {
                 </Row>
 
                 <Row gutter={16}>
-                   <Col span={24}>
+                    <Col span={24}>
                         <div className="flex justify-end mb-1">
                             <Button type="link" icon={<EnvironmentOutlined />} onClick={handleAutoFetchLocation} loading={fetchingLocation} className="text-blue-600 flex items-center gap-1 p-0 h-auto">
                                 Auto Fetch Location
@@ -230,7 +239,7 @@ const AddUserFormModal = ({ visible, onClose, onSuccess }) => {
                         <Form.Item name="address" label="Address" rules={[{ required: true, message: 'Please input address' }]}>
                             <Input className="h-10 rounded-lg" />
                         </Form.Item>
-                   </Col>
+                    </Col>
                 </Row>
 
                 <Row gutter={16}>
@@ -278,7 +287,22 @@ const AddUserFormModal = ({ visible, onClose, onSuccess }) => {
                     </Col>
                 </Row>
             </Form>
-        </Modal>
+            <style>
+                {`
+    .add-user-modal-scroll .ant-modal-body::-webkit-scrollbar {
+        width: 5px;
+    }
+
+    .add-user-modal-scroll .ant-modal-body::-webkit-scrollbar-thumb {
+       background: #e5e7eb;
+        border-radius: 10px;
+    }
+
+    .add-user-modal-scroll .ant-modal-body::-webkit-scrollbar-track {
+        background: transparent;
+    }
+`}
+            </style></Modal>
     );
 };
 
