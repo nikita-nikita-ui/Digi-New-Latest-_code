@@ -24,7 +24,17 @@ export const sendAdminOtp = async (mobile) => {
   }
 };
 
+export const getAllUsersAPI = async (page = 1, limit = 10, type = "all") => {
+  const response = await apiClient.get("/admin/users", {
+    params: {
+      type,
+      page,
+      limit,
+    },
+  });
 
+  return response.data;
+};
 export const verifyAdminOtp = async (mobile, otp) => {
 
   try {
@@ -469,23 +479,20 @@ export const createNewShopAPI = async (formData) => {
   }
 };
 
-export const createBusinessForUserAPI = async (formData) => {
-  try {
+export const createBusinessForUserAPI = async (data) => {
+  try 
+  {
     const response = await apiClient.post(
       "/admin/manage-business/create-for-user",
-      formData,
-      {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      },
+      data
     );
+
     return response.data;
-  } catch (error) {
+  } catch (error)
+   {
     throw error.response ? error.response.data : new Error("Network Error");
   }
 };
-
 export const addServiceToBusinessAPI = async (businessId, formData) => {
   try {
     const response = await apiClient.post(
